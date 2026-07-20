@@ -256,6 +256,7 @@
   }
 
   function updateLinkStatus() {
+    $("invite-box").hidden = !isHost() || !state.code;
     const n = openPeers().length;
     if (n > 0) {
       $("link-title").textContent = "Beamed in.";
@@ -278,7 +279,9 @@
       state.peer = "h";
       state.lastMsgId = 0;
       $("code-text").textContent = d.code;
-      renderQR("https://beamtm.com/#j=" + d.code);
+      renderQR("https://beamtm.com/#j=" + d.code, "qr-box");
+      renderQR("https://beamtm.com/#j=" + d.code, "qr-mini");
+      $("code-mini").textContent = d.code;
       $("host-status").textContent = "Waiting for your other device…";
       show("host");
       history.replaceState(null, "", "/");
@@ -325,6 +328,7 @@
 
   function enterRelayMode(reason) {
     state.relayMode = true;
+    $("invite-box").hidden = !isHost() || !state.code;
     $("link-title").textContent = "Beaming via relay";
     $("link-status").textContent = reason + " Files up to 7 MB.";
     $("link-status").classList.remove("live");
@@ -347,6 +351,8 @@
     });
     document.body.classList.remove("beaming");
     $("transfers").innerHTML = "";
+    $("invite-box").hidden = true;
+    $("qr-mini").innerHTML = "";
     $("link-status").classList.add("live");
     if (msg) toast(msg);
     show("home");
@@ -582,11 +588,11 @@
 
   // ---------- QR ----------
 
-  function renderQR(url) {
+  function renderQR(url, elId) {
     const qr = qrcode(0, "M");
     qr.addData(url);
     qr.make();
-    $("qr-box").innerHTML = qr.createSvgTag({ cellSize: 5, margin: 0, scalable: true });
+    $(elId).innerHTML = qr.createSvgTag({ cellSize: 5, margin: 0, scalable: true });
   }
 
   // ---------- secrets ----------

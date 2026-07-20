@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=6">
+<link rel="stylesheet" href="/assets/style.css?v=7">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -206,20 +206,30 @@
     <h2 id="link-title">Beamed in.</h2>
     <p class="status live" id="link-status">Connected directly — transfers are device-to-device.</p>
 
-    <div class="dropzone" id="drop-zone" role="button" tabindex="0"
-         aria-label="Choose files to beam">
-      <strong>Drop files here</strong> or tap to choose<br>
-      <span id="drop-hint">any size · straight to the other device</span>
-    </div>
-    <input type="file" id="file-input" multiple hidden>
+    <div class="link-grid">
+      <div class="link-main">
+        <div class="dropzone" id="drop-zone" role="button" tabindex="0"
+             aria-label="Choose files to beam">
+          <strong>Drop files here</strong> or tap to choose<br>
+          <span id="drop-hint">any size · straight to the other device</span>
+        </div>
+        <input type="file" id="file-input" multiple hidden>
 
-    <div class="textrow">
-      <input type="text" id="text-input" placeholder="Or type text to beam — links, notes, anything"
-             autocomplete="off">
-      <button class="btn" id="btn-send-text">Beam text</button>
-    </div>
+        <div class="textrow">
+          <input type="text" id="text-input" placeholder="Or type text to beam — links, notes, anything"
+                 autocomplete="off">
+          <button class="btn" id="btn-send-text">Beam text</button>
+        </div>
+      </div>
 
-    <div class="transfers" id="transfers"></div>
+      <aside class="invite" id="invite-box" hidden>
+        <div class="qr-card" id="qr-mini" aria-label="QR code to join this beam"></div>
+        <div class="invite-code" id="code-mini"></div>
+        <p class="note">Others can scan this — or enter the code at beamtm.com — to join.</p>
+      </aside>
+
+      <div class="transfers" id="transfers"></div>
+    </div>
   </section>
 
   <section id="view-secret" hidden>
@@ -307,6 +317,6 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/qr.js?v=1"></script>
-<script src="/assets/app.js?v=6"></script>
+<script src="/assets/app.js?v=7"></script>
 </body>
 </html>

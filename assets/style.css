@@ -529,6 +529,53 @@ input[type="text"]:focus-visible, textarea:focus-visible, select:focus-visible,
 
 /* ---- transfer view ---- */
 
+.link-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-areas:
+    "main invite"
+    "transfers invite";
+  gap: 4px 24px;
+  align-items: start;
+}
+
+.link-main { grid-area: main; }
+.invite { grid-area: invite; }
+.transfers { grid-area: transfers; }
+
+.link-grid:has(.invite[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "main" "transfers";
+}
+
+.invite .qr-card { padding: 12px; display: inline-block; }
+.invite .qr-card svg { width: 100%; max-width: 196px; }
+
+.invite-code {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  font-size: 1.15rem;
+  letter-spacing: .28em;
+  margin: 10px 0 6px;
+}
+
+@media (max-width: 720px) {
+  .link-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main" "invite" "transfers";
+  }
+  .invite {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .invite .qr-card svg { max-width: 120px; }
+  .invite .note { flex: 1; min-width: 12em; }
+  .invite-code { margin: 0; }
+}
+
 .dropzone {
   border: 2px dashed var(--line);
   border-radius: var(--radius);
