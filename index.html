@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>beam™ — send anything to any device</title>
+<meta name="description" content="Beam files and text directly between your devices with a QR code, or send a secret that burns after reading. No app, no account.">
+<meta property="og:title" content="beam™">
+<meta property="og:description" content="Send anything to any device. No app, no account.">
+<meta property="og:url" content="https://beamtm.com/">
+<meta name="theme-color" content="#5F49F5">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%232BD9FF'/%3E%3Cstop offset='.5' stop-color='%237A5AFF'/%3E%3Cstop offset='1' stop-color='%23FFA94D'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%23101724'/%3E%3Crect x='2' y='29' width='86' height='6' rx='3' fill='url(%23g)' transform='rotate(-24 32 32)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<div class="beamline" aria-hidden="true">
+  <div class="beamline__glow"></div>
+  <div class="beamline__core"></div>
+</div>
+
+<header>
+  <a class="wordmark" href="/">beam<sup>™</sup></a>
+  <span class="header-note">no app · no account</span>
+</header>
+
+<main>
+
+  <section id="view-home">
+    <h1>Send anything to any device.</h1>
+    <p class="sub">Open beam on both devices and scan the code. Files travel directly
+    between them — this server only makes the introduction.</p>
+
+    <div class="cards">
+      <button class="card" id="btn-start">
+        <h2>Beam files &amp; text</h2>
+        <p>Pair this device with another using a QR code, then drop anything across.</p>
+        <span class="go">Start a beam →</span>
+      </button>
+      <button class="card" id="btn-secret">
+        <h2>Send a secret</h2>
+        <p>Write a message that burns after one reading. Encrypted in your browser —
+        we never see it.</p>
+        <span class="go">Write a secret →</span>
+      </button>
+    </div>
+
+    <div class="join-row">
+      <label for="join-code">Got a code from another device?</label>
+      <input type="text" id="join-code" maxlength="6" autocomplete="off"
+             spellcheck="false" placeholder="ABC123">
+      <button class="btn btn--ghost" id="btn-join">Join</button>
+    </div>
+  </section>
+
+  <section id="view-host" hidden>
+    <a class="back" href="/" data-back>← Back</a>
+    <div class="pairing">
+      <div class="qr-card" id="qr-box" aria-label="QR code to join this beam"></div>
+      <div class="pair-info">
+        <h2>Scan with your other device</h2>
+        <p class="sub" style="margin-bottom:0">Or open <strong>beamtm.com</strong> on it
+        and enter this code:</p>
+        <div class="big-code" id="code-text">······</div>
+        <p class="status" id="host-status">Waiting for your other device…</p>
+        <button class="btn btn--ghost" id="btn-host-cancel">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-link" hidden>
+    <a class="back" href="/" data-back>← End beam</a>
+    <h2 id="link-title">Beamed in.</h2>
+    <p class="status live" id="link-status">Connected directly — transfers are device-to-device.</p>
+
+    <div class="dropzone" id="drop-zone" role="button" tabindex="0"
+         aria-label="Choose files to beam">
+      <strong>Drop files here</strong> or tap to choose<br>
+      <span id="drop-hint">any size · straight to the other device</span>
+    </div>
+    <input type="file" id="file-input" multiple hidden>
+
+    <div class="textrow">
+      <input type="text" id="text-input" placeholder="Or type text to beam — links, notes, anything"
+             autocomplete="off">
+      <button class="btn" id="btn-send-text">Beam text</button>
+    </div>
+
+    <div class="transfers" id="transfers"></div>
+  </section>
+
+  <section id="view-secret" hidden>
+    <a class="back" href="/" data-back>← Back</a>
+    <h2>Send a secret</h2>
+    <p class="sub">It's encrypted in your browser before it leaves this page.
+    The link works once, then the message is gone.</p>
+
+    <div id="secret-compose">
+      <textarea id="secret-text" placeholder="Write your secret — a password, a note, anything up to 40,000 characters"></textarea>
+      <div class="secret-opts">
+        <label for="secret-ttl">If unopened, delete after</label>
+        <select id="secret-ttl">
+          <option value="3600">1 hour</option>
+          <option value="86400" selected>1 day</option>
+          <option value="604800">7 days</option>
+        </select>
+        <button class="btn" id="btn-secret-create">Create one-time link</button>
+      </div>
+    </div>
+
+    <div id="secret-done" hidden>
+      <p><strong>Your one-time link is ready.</strong></p>
+      <div class="linkbox">
+        <input type="text" id="secret-link" readonly>
+        <button class="btn" id="btn-secret-copy">Copy link</button>
+      </div>
+      <p class="note">Anyone with this link can read the secret exactly once.
+      Send it however you like — the decryption key lives in the link itself and
+      never reaches our server.</p>
+      <p style="margin-top:18px"><button class="btn btn--ghost" id="btn-secret-again">Write another</button></p>
+    </div>
+  </section>
+
+  <section id="view-reveal" hidden>
+    <div class="reveal-panel">
+      <div id="reveal-intro">
+        <h2>You've been sent a secret.</h2>
+        <p class="sub" style="margin-bottom:1.2em">It can be read exactly once.
+        When you reveal it, it's deleted everywhere — make sure you're ready to read it now.</p>
+        <button class="btn" id="btn-reveal">Reveal secret</button>
+      </div>
+      <div id="reveal-out" hidden>
+        <h2>Here it is</h2>
+        <div id="reveal-text"></div>
+        <p class="note warn">This secret has now been destroyed. Copy it if you need it —
+        this link is dead.</p>
+        <p style="margin-top:16px">
+          <button class="btn" id="btn-reveal-copy">Copy text</button>
+          <a class="btn btn--ghost" href="/" style="text-decoration:none">Done</a>
+        </p>
+      </div>
+      <div id="reveal-gone" hidden>
+        <h2>This secret is gone.</h2>
+        <p class="sub" style="margin-bottom:1.2em">It was already read, it expired,
+        or the link isn't valid. Secrets can only be opened once.</p>
+        <a class="btn btn--ghost" href="/" style="text-decoration:none">Go to beam</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p class="fine">Beamed files travel device-to-device over an encrypted connection and are
+  never stored here. Secrets are encrypted in your browser; this server keeps only
+  ciphertext it cannot read, and deletes it the moment it's opened. Beams expire after
+  15 minutes. · © 2026 beam™</p>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="/assets/qr.js"></script>
+<script src="/assets/app.js"></script>
+</body>
+</html>
