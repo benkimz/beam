@@ -21,6 +21,7 @@
     sending: false,
     sendQueue: [],
     incoming: null,      // { id, name, size, type, chunks, received, el }
+    pendingIce: [],
     counter: 0,
   };
 
@@ -137,14 +138,20 @@
       if (msg.type === "offer") {
         setupPeer(false);
         await state.pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+        await flushIce();
         const ans = await state.pc.createAnswer();
         await state.pc.setLocalDescription(ans);
         await sendSignal({ type: "answer", sdp: ans.sdp });
         armFallback();
       } else if (msg.type === "answer" && state.pc) {
         await state.pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
-      } else if (msg.type === "ice" && state.pc && msg.c) {
-        await state.pc.addIceCandidate(msg.c).catch(() => {});
+        await flushIce();
+      } else if (msg.type === "ice" && msg.c) {
+        if (state.pc && state.pc.remoteDescription) {
+          await state.pc.addIceCandidate(msg.c).catch(() => {});
+        } else {
+          state.pendingIce.push(msg.c);
+        }
       } else if (msg.type === "text") {
         addTextTx("in", msg.body);
         if (!state.connected) toast("Text received via relay.");
@@ -157,6 +164,13 @@
   }
 
   // ---------- WebRTC ----------
+
+  async function flushIce() {
+    const pend = state.pendingIce.splice(0);
+    for (const c of pend) {
+      await state.pc.addIceCandidate(c).catch(() => {});
+    }
+  }
 
   function setupPeer(initiator) {
     if (state.pc) return;
@@ -281,6 +295,7 @@
     Object.assign(state, {
       code: null, role: null, pc: null, dc: null, connected: false,
       relayMode: false, lastSignalId: 0, sending: false, sendQueue: [], incoming: null,
+      pendingIce: [],
     });
     document.body.classList.remove("beaming");
     $("transfers").innerHTML = "";
