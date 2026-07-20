@@ -36,6 +36,7 @@ switch ($action) {
         $db->prepare('DELETE FROM msgs WHERE code = ?')->execute([$code]);
         $db->prepare('INSERT INTO sessions (code, created, host_seen, guests) VALUES (?, ?, ?, 0)')
            ->execute([$code, $now, $now]);
+        beam_count($db, 'beam_created');
         beam_json(['code' => $code, 'ttl' => SESSION_TTL, 'maxGuests' => MAX_GUESTS]);
     }
 
@@ -57,6 +58,7 @@ switch ($action) {
             beam_json(['error' => 'This beam is full — up to ' . MAX_GUESTS . ' devices can join.'], 409);
         }
         $peer = 'g' . beam_new_code(4);
+        beam_count($db, 'beam_joined');
         beam_json(['ok' => true, 'peer' => $peer]);
     }
 

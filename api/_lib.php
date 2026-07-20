@@ -51,7 +51,25 @@ function beam_db(): PDO {
         created INTEGER NOT NULL,
         expires INTEGER NOT NULL
     )');
+    $db->exec('CREATE TABLE IF NOT EXISTS stats (
+        day TEXT NOT NULL,
+        metric TEXT NOT NULL,
+        n INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (day, metric)
+    )');
     return $db;
+}
+
+// Aggregate-only usage counters: one integer per metric per UTC day.
+// No identifiers, no IPs, no user agents — nothing about *who*.
+function beam_count(PDO $db, string $metric): void {
+    try {
+        $db->prepare('INSERT INTO stats (day, metric, n) VALUES (?, ?, 1)
+                      ON CONFLICT(day, metric) DO UPDATE SET n = n + 1')
+           ->execute([gmdate('Y-m-d'), $metric]);
+    } catch (Throwable $e) {
+        // stats must never break the product
+    }
 }
 
 function beam_cleanup(PDO $db): void {

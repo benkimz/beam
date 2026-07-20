@@ -28,6 +28,7 @@ switch ($action) {
         $id = rtrim(strtr(base64_encode(random_bytes(12)), '+/', '-_'), '=');
         $db->prepare('INSERT INTO secrets (id, ct, created, expires) VALUES (?, ?, ?, ?)')
            ->execute([$id, $ct, $now, $now + $ttl]);
+        beam_count($db, 'secret_created');
         beam_json(['id' => $id, 'expires' => $now + $ttl]);
     }
 
@@ -52,6 +53,7 @@ switch ($action) {
             usleep(300000);
             beam_json(['gone' => true], 404);
         }
+        beam_count($db, 'secret_read');
         beam_json(['ct' => $row['ct']]);
     }
 

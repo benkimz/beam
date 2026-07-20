@@ -864,6 +864,9 @@
     }
   }
 
+  // anonymous page-view tick: a bare counter increment, nothing identifying
+  try { navigator.sendBeacon && navigator.sendBeacon("/api/stats.php", "1"); } catch {}
+
   window.addEventListener("hashchange", () => {
     if (state.code) return; // never yank an active beam
     route();

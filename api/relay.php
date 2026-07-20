@@ -36,6 +36,7 @@ if ($method === 'POST') {
     }
     $name = mb_substr(preg_replace('/[\x00-\x1f\/\\\\]/', '_', $name), 0, 180);
     file_put_contents("$relayDir/$code.json", json_encode(['name' => $name, 'size' => $written]));
+    beam_count($db, 'relay_upload');
     beam_json(['ok' => true, 'size' => $written]);
 }
 
