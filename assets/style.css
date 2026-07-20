@@ -224,33 +224,160 @@ h2 {
   color: var(--pulse);
 }
 
-.steps {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  list-style: none;
+/* ---- how-it-works vignette: laptop pairs with phone, packets fly both ways.
+   One shared 10s timeline; every element keys off the same percentages. ---- */
+
+.howto {
+  max-width: 640px;
   margin-bottom: 26px;
-  color: var(--dim);
-  font-size: .92rem;
 }
 
-.steps li { display: flex; align-items: center; gap: 9px; }
-.steps em { font-style: normal; }
-.steps strong { color: var(--ink); }
+.howto svg { width: 100%; height: auto; display: block; }
 
-.steps li span {
+.hw-frame {
+  fill: var(--card);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.hw-qrm rect { fill: var(--ink); }
+
+.hw-code {
   font-family: "IBM Plex Mono", monospace;
-  font-size: .72rem;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--pulse);
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  width: 1.8em;
-  height: 1.8em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
+  letter-spacing: .12em;
+  fill: var(--dim);
+}
+
+.hw-phone { animation: hw-approach 10s ease-in-out infinite; }
+
+.hw-scan path {
+  fill: none;
+  stroke: var(--pulse);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.hw-scan rect { fill: var(--dim); }
+.hw-scan { animation: hw-scan 10s linear infinite; }
+
+.hw-beam {
+  stroke-width: 2.5;
+  stroke-dasharray: 230;
+  animation: hw-beam 10s linear infinite;
+}
+
+.hw-dot--file { fill: #7A5AFF; animation: hw-dotfile 10s linear infinite; }
+.hw-dot--back { fill: #FFA94D; animation: hw-dotback 10s linear infinite; }
+
+.hw-file rect:first-child, .hw-chip rect:first-child {
+  fill: var(--card);
+  stroke: var(--violet);
+  stroke-width: 1.5;
+}
+
+.hw-chip rect:first-child { stroke: var(--amber); }
+.hw-chipline { fill: var(--line); stroke: none; }
+
+.hw-file, .hw-chip {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hw-file { animation: hw-filecard 10s ease-out infinite; }
+.hw-chip { animation: hw-chipcard 10s ease-out infinite; }
+
+.hw-caption {
+  position: relative;
+  height: 1.5em;
+  margin-top: 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .82rem;
+  color: var(--dim);
+}
+
+.hw-caption span { position: absolute; inset: 0; opacity: 0; }
+.hw-cap1 { animation: hw-cap1 10s linear infinite; }
+.hw-cap2 { animation: hw-cap2 10s linear infinite; }
+.hw-cap3 { animation: hw-cap3 10s linear infinite; }
+
+@keyframes hw-approach {
+  0% { transform: translateX(16px); }
+  10%, 100% { transform: translateX(0); }
+}
+
+@keyframes hw-scan {
+  0%, 5% { opacity: 0; }
+  9%, 15% { opacity: 1; }
+  20%, 100% { opacity: 0; }
+}
+
+@keyframes hw-beam {
+  0%, 12% { stroke-dashoffset: 230; opacity: 0; }
+  13% { opacity: .9; }
+  21% { stroke-dashoffset: 0; }
+  95% { stroke-dashoffset: 0; opacity: .9; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+@keyframes hw-dotfile {
+  0%, 24% { opacity: 0; transform: translateX(0); }
+  26% { opacity: 1; }
+  40% { opacity: 1; transform: translateX(230px); }
+  43%, 100% { opacity: 0; transform: translateX(230px); }
+}
+
+@keyframes hw-filecard {
+  0%, 39% { opacity: 0; transform: scale(.5); }
+  46% { opacity: 1; transform: scale(1); }
+  95% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes hw-dotback {
+  0%, 56% { opacity: 0; transform: translateX(0); }
+  58% { opacity: 1; }
+  72% { opacity: 1; transform: translateX(-230px); }
+  75%, 100% { opacity: 0; transform: translateX(-230px); }
+}
+
+@keyframes hw-chipcard {
+  0%, 71% { opacity: 0; transform: scale(.5); }
+  78% { opacity: 1; transform: scale(1); }
+  95% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes hw-cap1 {
+  0%, 20% { opacity: 1; }
+  24%, 100% { opacity: 0; }
+}
+
+@keyframes hw-cap2 {
+  0%, 22% { opacity: 0; }
+  26%, 50% { opacity: 1; }
+  54%, 100% { opacity: 0; }
+}
+
+@keyframes hw-cap3 {
+  0%, 52% { opacity: 0; }
+  56%, 94% { opacity: 1; }
+  98%, 100% { opacity: 0; }
+}
+
+/* static fallback: everything visible, plain caption */
+@media (prefers-reduced-motion: reduce) {
+  .hw-phone, .hw-beam, .hw-dot--file, .hw-dot--back,
+  .hw-file, .hw-chip, .hw-scan, .hw-caption span { animation: none; }
+  .hw-beam { stroke-dashoffset: 0; opacity: .9; }
+  .hw-scan { opacity: 0; }
+  .hw-dot--file, .hw-dot--back { opacity: 1; transform: translateX(115px); }
+  .hw-dot--back { transform: translateX(-115px); }
+  .hw-file, .hw-chip { opacity: 1; }
+  .hw-caption { height: auto; }
+  .hw-caption span { position: static; opacity: 0; display: none; }
+  .hw-caption .hw-cap3 { display: block; opacity: 1; }
 }
 
 .join-row {
