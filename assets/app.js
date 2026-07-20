@@ -132,6 +132,10 @@
           try { body = JSON.parse(m.body); } catch { continue; }
           await handleSignal(m.sender, body);
         }
+        if (d.ended && state.code) {
+          endBeam(isHost() ? undefined : "The host ended this beam.");
+          return;
+        }
       } catch (e) {
         if (String(e.message).includes("expired") || String(e.message).includes("No beam")) {
           endBeam("This beam expired. Start a new one when you're ready.");
@@ -176,6 +180,8 @@
         if (!anyOpen()) toast("Text received via relay.");
       } else if (msg.type === "relay-file") {
         receiveRelayFile(msg);
+      } else if (msg.type === "bye") {
+        byeFrom(from);
       }
     } catch (e) {
       console.warn("signal handling", e);
@@ -202,10 +208,25 @@
         { urls: "stun:stun1.l.google.com:19302" },
       ],
     });
-    p = { pc, dc: null, open: false, pendingIce: [] };
+    p = { pc, dc: null, open: false, pendingIce: [], lossTimer: null };
     state.peers.set(remoteId, p);
     pc.onicecandidate = (ev) => {
       if (ev.candidate) sendSignal(remoteId, { type: "ice", c: ev.candidate.toJSON() }).catch(() => {});
+    };
+    // active liveness: unclean disconnects (wifi drop, phone lock) must not
+    // leave a ghost in the device count
+    pc.onconnectionstatechange = () => {
+      const st = pc.connectionState;
+      if (st === "failed" || st === "closed") {
+        peerGone(remoteId);
+      } else if (st === "disconnected") {
+        clearTimeout(p.lossTimer);
+        p.lossTimer = setTimeout(() => {
+          if (pc.connectionState === "disconnected") peerGone(remoteId);
+        }, 8000);
+      } else if (st === "connected") {
+        clearTimeout(p.lossTimer);
+      }
     };
     if (initiator) {
       attachChannel(remoteId, pc.createDataChannel("beam", { ordered: true }));
@@ -230,24 +251,7 @@
       show("link");
       toast(isHost() && openPeers().length > 1 ? "Another device connected." : "Devices connected.");
     };
-    dc.onclose = () => {
-      p.open = false;
-      if (!state.code) return;
-      if (isHost()) {
-        state.peers.delete(remoteId);
-        state.incomingBy.delete(remoteId);
-        if (anyOpen()) {
-          updateLinkStatus();
-          toast("A device left the beam.");
-        } else {
-          document.body.classList.remove("beaming");
-          enterRelayMode("All devices disconnected — beaming via relay until they return.");
-        }
-      } else {
-        document.body.classList.remove("beaming");
-        enterRelayMode("The direct connection dropped — falling back to relay.");
-      }
-    };
+    dc.onclose = () => peerGone(remoteId);
     dc.onmessage = (ev) => {
       if (typeof ev.data === "string") {
         let m;
@@ -259,6 +263,48 @@
         appendIncoming(remoteId, ev.data);
       }
     };
+  }
+
+  function peerGone(remoteId) {
+    const p = state.peers.get(remoteId);
+    if (!p || !state.code) return;
+    clearTimeout(p.lossTimer);
+    state.peers.delete(remoteId);
+    state.incomingBy.delete(remoteId);
+    try { p.dc && p.dc.close(); } catch {}
+    try { p.pc.close(); } catch {}
+    if (isHost()) {
+      if (anyOpen()) {
+        updateLinkStatus();
+        toast("A device left the beam.");
+      } else {
+        hostIdleState();
+      }
+    } else {
+      document.body.classList.remove("beaming");
+      enterRelayMode("The direct connection dropped — falling back to relay.");
+    }
+  }
+
+  function byeFrom(remoteId) {
+    if (!isHost() && remoteId === "h") {
+      endBeam("The host ended this beam.");
+      return;
+    }
+    peerGone(remoteId);
+  }
+
+  function hostIdleState() {
+    state.relayMode = false;
+    document.body.classList.remove("beaming");
+    setInviteVisible(!!state.code);
+    $("link-title").textContent = "Waiting for devices…";
+    const st = $("link-status");
+    st.classList.remove("live");
+    st.textContent = "No devices connected right now — code " + state.code +
+      " and the QR still work.";
+    $("drop-hint").textContent = "waiting for a device to join";
+    show("link");
   }
 
   function setInviteVisible(visible) {
@@ -352,9 +398,18 @@
   function endBeam(msg) {
     stopPolling();
     clearTimeout(state.fallbackTimer);
+    const wasHost = isHost();
+    const code = state.code;
     for (const [, p] of state.peers) {
+      clearTimeout(p.lossTimer);
+      p.pc.onconnectionstatechange = null;
+      if (p.dc) p.dc.onclose = null;
+      try { if (p.open && p.dc.readyState === "open") p.dc.send(JSON.stringify({ t: "bye" })); } catch {}
       try { p.dc && p.dc.close(); } catch {}
       try { p.pc.close(); } catch {}
+    }
+    if (wasHost && code) {
+      api("beam.php", { action: "end", code }).catch(() => {});
     }
     state.peers = new Map();
     state.incomingBy = new Map();
@@ -428,6 +483,7 @@
     try {
       if (anyOpen()) await sendFileP2P(f);
       else if (state.relayMode) await sendFileRelay(f);
+      else if (isHost()) toast("No devices connected right now — they can join with the code.");
       else toast("Not connected yet — hang on a moment.");
     } catch (e) {
       toast("Sending failed: " + e.message);

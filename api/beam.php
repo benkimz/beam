@@ -46,9 +46,9 @@ switch ($action) {
             beam_json(['error' => 'That code doesn\'t look right — codes are 6 letters and numbers.'], 400);
         }
         $s = beam_session($db, $code);
-        if ($s === null) {
+        if ($s === null || (int)($s['ended'] ?? 0) === 1) {
             usleep(400000); // slow down code guessing
-            beam_json(['error' => 'No beam with that code. It may have expired — beams last 15 minutes.'], 404);
+            beam_json(['error' => 'No beam with that code. It may have ended or expired — beams last 15 minutes.'], 404);
         }
         // atomic slot claim: two simultaneous joins can't both take the last seat
         $st = $db->prepare('UPDATE sessions SET guests = guests + 1, guest_seen = ?
@@ -71,7 +71,8 @@ switch ($action) {
             || !is_string($body) || strlen($body) > SIGNAL_MAX_BYTES) {
             beam_json(['error' => 'bad request'], 400);
         }
-        if (beam_session($db, $code) === null) {
+        $s = beam_session($db, $code);
+        if ($s === null || (int)($s['ended'] ?? 0) === 1) {
             beam_json(['error' => 'expired'], 404);
         }
         $db->prepare('INSERT INTO msgs (code, sender, target, body, created) VALUES (?, ?, ?, ?, ?)')
@@ -95,7 +96,22 @@ switch ($action) {
         $st = $db->prepare('SELECT id, sender, body FROM msgs WHERE code = ? AND target = ? AND id > ? ORDER BY id LIMIT 50');
         $st->execute([$code, $peer, $after]);
         $msgs = $st->fetchAll(PDO::FETCH_ASSOC);
-        beam_json(['msgs' => $msgs, 'guests' => (int)($s['guests'] ?? 0)]);
+        beam_json([
+            'msgs' => $msgs,
+            'guests' => (int)($s['guests'] ?? 0),
+            'ended' => (int)($s['ended'] ?? 0) === 1,
+        ]);
+    }
+
+    case 'end': {
+        $code = beam_valid_code($in['code'] ?? null);
+        if ($code === null) {
+            beam_json(['error' => 'bad request'], 400);
+        }
+        $db->prepare('UPDATE sessions SET ended = 1 WHERE code = ?')->execute([$code]);
+        @unlink(beam_data_dir() . "/relay/$code.bin");
+        @unlink(beam_data_dir() . "/relay/$code.json");
+        beam_json(['ok' => true]);
     }
 
     default:

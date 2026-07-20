@@ -15,7 +15,8 @@ if ($method === 'POST') {
     $code = beam_valid_code($_SERVER['HTTP_X_BEAM_CODE'] ?? null);
     $name = $_SERVER['HTTP_X_BEAM_NAME'] ?? 'beamed-file';
     $db = beam_db();
-    if ($code === null || beam_session($db, $code) === null) {
+    $s = $code === null ? null : beam_session($db, $code);
+    if ($s === null || (int)($s['ended'] ?? 0) === 1) {
         beam_json(['error' => 'Beam expired — start a new one.'], 404);
     }
     $len = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);

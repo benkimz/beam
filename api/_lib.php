@@ -32,10 +32,12 @@ function beam_db(): PDO {
         created INTEGER NOT NULL,
         host_seen INTEGER NOT NULL,
         guest_seen INTEGER NOT NULL DEFAULT 0,
-        guests INTEGER NOT NULL DEFAULT 0
+        guests INTEGER NOT NULL DEFAULT 0,
+        ended INTEGER NOT NULL DEFAULT 0
     )');
-    // migration for databases created before the guests column existed
+    // migrations for databases created before these columns existed
     try { $db->exec('ALTER TABLE sessions ADD COLUMN guests INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+    try { $db->exec('ALTER TABLE sessions ADD COLUMN ended INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     $db->exec('CREATE TABLE IF NOT EXISTS msgs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL,
