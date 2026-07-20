@@ -780,14 +780,28 @@
   const dz = $("drop-zone");
   dz.onclick = () => $("file-input").click();
   dz.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file-input").click(); } };
-  dz.ondragover = (e) => { e.preventDefault(); dz.classList.add("over"); };
-  dz.ondragleave = () => dz.classList.remove("over");
-  dz.ondrop = (e) => {
-    e.preventDefault();
-    dz.classList.remove("over");
-    if (e.dataTransfer.files.length) queueFiles(e.dataTransfer.files);
-  };
   $("file-input").onchange = (e) => { queueFiles(e.target.files); e.target.value = ""; };
+
+  // the whole window is the drop target while beaming; drops elsewhere
+  // must never trigger the browser's default file-open navigation
+  const dragHasFiles = (e) =>
+    e.dataTransfer && [...(e.dataTransfer.types || [])].includes("Files");
+  window.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    if (!$("view-link").hidden && dragHasFiles(e)) {
+      document.body.classList.add("dragging");
+    }
+  });
+  window.addEventListener("dragleave", (e) => {
+    if (e.relatedTarget === null) document.body.classList.remove("dragging");
+  });
+  window.addEventListener("drop", (e) => {
+    e.preventDefault();
+    document.body.classList.remove("dragging");
+    if (!$("view-link").hidden && e.dataTransfer.files.length) {
+      queueFiles(e.dataTransfer.files);
+    }
+  });
 
   $("btn-send-text").onclick = async () => {
     const v = $("text-input").value;

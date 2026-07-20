@@ -596,6 +596,26 @@ input[type="text"]:focus-visible, textarea:focus-visible, select:focus-visible,
 .dropzone.over, .dropzone:hover { border-color: var(--violet); }
 .dropzone strong { color: var(--ink); }
 
+/* whole-window drop affordance while a drag is in flight */
+body.dragging .dropzone { border-color: var(--violet); }
+
+body.dragging::after {
+  content: "Drop anywhere to beam";
+  position: fixed;
+  inset: 12px;
+  z-index: 25;
+  border: 2px dashed var(--violet);
+  border-radius: 18px;
+  background: rgba(122, 90, 255, .07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Unbounded", sans-serif;
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  color: var(--pulse);
+  pointer-events: none;
+}
+
 .textrow { display: flex; gap: 10px; margin-bottom: 22px; }
 .textrow input { flex: 1; min-width: 0; }
 
