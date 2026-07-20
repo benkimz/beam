@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=12">
+<link rel="stylesheet" href="/assets/style.css?v=13">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -328,6 +328,14 @@
   <section id="view-reveal" hidden>
     <div class="reveal-panel">
       <div id="reveal-intro">
+        <div class="seal" aria-hidden="true">
+          <svg viewBox="0 0 64 64" focusable="false">
+            <circle class="seal-ring" cx="32" cy="32" r="29"/>
+            <path class="seal-shackle" d="M24 30 v-6 a8 8 0 0 1 16 0 v6"/>
+            <rect class="seal-body" x="21" y="29" width="22" height="17" rx="4"/>
+            <circle class="seal-dot" cx="32" cy="37" r="2.6"/>
+          </svg>
+        </div>
         <h2>You've been sent a secret.</h2>
         <p class="sub" style="margin-bottom:1.2em">It can be read exactly once.
         When you reveal it, it's deleted everywhere — make sure you're ready to read it now.</p>
@@ -386,6 +394,6 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/qr.js?v=1"></script>
-<script src="/assets/app.js?v=12"></script>
+<script src="/assets/app.js?v=13"></script>
 </body>
 </html>

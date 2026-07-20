@@ -803,9 +803,37 @@
     btn.textContent = "Create one-time link";
   }
 
+  // Short texts resolve out of cipher glyphs — decryption made visible.
+  // Long texts blur into focus instead; scrambling 40k chars would just lag.
+  function materializeText(el, text) {
+    el.classList.remove("materialize");
+    if (text.length > 400 || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.textContent = text;
+      void el.offsetWidth; // restart the CSS animation
+      el.classList.add("materialize");
+      return;
+    }
+    const glyphs = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789#*+=%$@!?";
+    const dur = 650;
+    const start = performance.now();
+    const step = (t) => {
+      const k = Math.min(1, (t - start) / dur);
+      const resolved = Math.floor(text.length * k);
+      let out = text.slice(0, resolved);
+      for (let i = resolved; i < text.length; i++) {
+        const ch = text[i];
+        out += (ch === "\n" || ch === " ") ? ch : glyphs[(Math.random() * glyphs.length) | 0];
+      }
+      el.textContent = out;
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
   async function revealSecret(id, keyStr) {
     const btn = $("btn-reveal");
     btn.disabled = true;
+    btn.textContent = "Decrypting…";
     let fetched = false;
     try {
       const d = await api("secret.php", { action: "read", id });
@@ -815,15 +843,16 @@
       const plain = await crypto.subtle.decrypt(
         { name: "AES-GCM", iv: packed.slice(0, 12) }, key, packed.slice(12)
       );
-      $("reveal-text").textContent = new TextDecoder().decode(plain);
       $("reveal-intro").hidden = true;
       $("reveal-out").hidden = false;
+      materializeText($("reveal-text"), new TextDecoder().decode(plain));
       history.replaceState(null, "", "/");
     } catch (e) {
       if (!fetched && e.status === undefined) {
         // network failure — the secret is still intact, let them retry
         toast("Couldn't reach the server — check your connection and try again.");
         btn.disabled = false;
+        btn.textContent = "Reveal secret";
         return;
       }
       $("reveal-intro").hidden = true;
@@ -947,6 +976,7 @@
         $("reveal-out").hidden = true;
         $("reveal-gone").hidden = true;
         $("btn-reveal").disabled = false;
+        $("btn-reveal").textContent = "Reveal secret";
         $("btn-reveal").onclick = () => revealSecret(id, key);
         show("reveal");
         return;

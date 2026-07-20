@@ -693,6 +693,59 @@ textarea#secret-text {
   margin: 1em 0;
 }
 
+/* reveal ceremony: sealed while waiting, decrypt once, consequence lands last */
+
+.seal { margin-bottom: 16px; width: 56px; }
+.seal svg { width: 100%; height: auto; display: block; }
+
+.seal-ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-dasharray: 4 7;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.seal-shackle {
+  fill: none;
+  stroke: var(--pulse);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.seal-body { fill: var(--pulse); }
+.seal-dot { fill: var(--paper); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .seal-ring { animation: seal-turn 40s linear infinite; }
+  .seal svg { animation: seal-breathe 3.5s ease-in-out infinite; }
+
+  #reveal-text.materialize { animation: materialize .7s ease-out both; }
+
+  #reveal-out .note.warn {
+    opacity: 0;
+    animation: warn-in .5s ease-out .9s forwards;
+  }
+}
+
+@keyframes seal-turn { to { transform: rotate(360deg); } }
+
+@keyframes seal-breathe {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(122, 90, 255, .3)); }
+  50% { filter: drop-shadow(0 0 10px rgba(122, 90, 255, .65)); }
+}
+
+@keyframes materialize {
+  from { opacity: 0; filter: blur(8px); }
+  to { opacity: 1; filter: none; }
+}
+
+@keyframes warn-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* ---- faq ---- */
 
 .faq {
