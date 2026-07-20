@@ -1,10 +1,14 @@
 <?php
-// Deployment probe — reports server capabilities. Gated by token.
+// Deployment probe — reports server capabilities.
+// Gated by a key stored server-side in <data dir>/probe_key.txt (not in the repo);
+// if that file is absent the probe is disabled entirely.
 declare(strict_types=1);
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
-if (($_GET['k'] ?? '') !== 'hZ2vQ9-probe') {
+$keyFile = dirname(__DIR__, 2) . '/beamtm_data/probe_key.txt';
+$expected = is_file($keyFile) ? trim((string)file_get_contents($keyFile)) : '';
+if ($expected === '' || !hash_equals($expected, (string)($_GET['k'] ?? ''))) {
     http_response_code(404);
     echo '{"error":"not found"}';
     exit;
