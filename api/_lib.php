@@ -7,7 +7,8 @@ const SECRET_DEFAULT_TTL = 86400;
 const SECRET_MAX_TTL = 604800;
 const SECRET_MAX_BYTES = 65536;   // ciphertext cap
 const SIGNAL_MAX_BYTES = 65536;
-const RELAY_MAX_BYTES = 15728640; // 15 MB relay fallback cap
+const RELAY_MAX_BYTES = 7340032;  // 7 MB relay fallback cap (host's post_max_size is 8M)
+const MAX_GUESTS = 8;
 
 function beam_data_dir(): string {
     $dir = dirname(__DIR__, 2) . '/beamtm_data';
@@ -32,14 +33,17 @@ function beam_db(): PDO {
         host_seen INTEGER NOT NULL,
         guest_seen INTEGER NOT NULL DEFAULT 0
     )');
-    $db->exec('CREATE TABLE IF NOT EXISTS signals (
+    try { $db->exec('ALTER TABLE sessions ADD COLUMN guests INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+    $db->exec('DROP TABLE IF EXISTS signals');
+    $db->exec('CREATE TABLE IF NOT EXISTS msgs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL,
         sender TEXT NOT NULL,
+        target TEXT NOT NULL,
         body TEXT NOT NULL,
         created INTEGER NOT NULL
     )');
-    $db->exec('CREATE INDEX IF NOT EXISTS idx_signals_code ON signals (code, id)');
+    $db->exec('CREATE INDEX IF NOT EXISTS idx_msgs_code ON msgs (code, target, id)');
     $db->exec('CREATE TABLE IF NOT EXISTS secrets (
         id TEXT PRIMARY KEY,
         ct TEXT NOT NULL,
@@ -55,7 +59,7 @@ function beam_cleanup(PDO $db): void {
         return;
     }
     $now = time();
-    $db->prepare('DELETE FROM signals WHERE created < ?')->execute([$now - SESSION_TTL]);
+    $db->prepare('DELETE FROM msgs WHERE created < ?')->execute([$now - SESSION_TTL]);
     $db->prepare('DELETE FROM sessions WHERE created < ?')->execute([$now - SESSION_TTL]);
     $db->prepare('DELETE FROM secrets WHERE expires < ?')->execute([$now]);
     foreach (glob(beam_data_dir() . '/relay/*') ?: [] as $f) {
@@ -94,6 +98,13 @@ function beam_valid_code($c): ?string {
     }
     $c = strtoupper(trim($c));
     return preg_match('/^[A-Z2-9]{6}$/', $c) === 1 ? $c : null;
+}
+
+function beam_valid_peer($p): ?string {
+    if (!is_string($p)) {
+        return null;
+    }
+    return preg_match('/^(h|g[A-Z2-9]{4})$/', $p) === 1 ? $p : null;
 }
 
 function beam_session(PDO $db, string $code): ?array {

@@ -1,5 +1,7 @@
 <?php
-// Beam session signaling: pairs two devices and relays WebRTC handshake messages.
+// Beam session signaling: pairs devices and relays WebRTC handshake messages.
+// One host per beam, up to MAX_GUESTS guests. Every message is addressed
+// from one peer id to another ('h' for the host, 'gXXXX' for guests).
 declare(strict_types=1);
 require __DIR__ . '/_lib.php';
 
@@ -27,10 +29,10 @@ switch ($action) {
             beam_json(['error' => 'busy, try again'], 503);
         }
         $db->prepare('DELETE FROM sessions WHERE code = ?')->execute([$code]);
-        $db->prepare('DELETE FROM signals WHERE code = ?')->execute([$code]);
-        $db->prepare('INSERT INTO sessions (code, created, host_seen) VALUES (?, ?, ?)')
+        $db->prepare('DELETE FROM msgs WHERE code = ?')->execute([$code]);
+        $db->prepare('INSERT INTO sessions (code, created, host_seen, guests) VALUES (?, ?, ?, 0)')
            ->execute([$code, $now, $now]);
-        beam_json(['code' => $code, 'ttl' => SESSION_TTL]);
+        beam_json(['code' => $code, 'ttl' => SESSION_TTL, 'maxGuests' => MAX_GUESTS]);
     }
 
     case 'join': {
@@ -43,45 +45,49 @@ switch ($action) {
             usleep(400000); // slow down code guessing
             beam_json(['error' => 'No beam with that code. It may have expired — beams last 15 minutes.'], 404);
         }
-        $db->prepare('UPDATE sessions SET guest_seen = ? WHERE code = ?')->execute([$now, $code]);
-        beam_json(['ok' => true]);
+        if ((int)($s['guests'] ?? 0) >= MAX_GUESTS) {
+            beam_json(['error' => 'This beam is full — up to ' . MAX_GUESTS . ' devices can join.'], 409);
+        }
+        $peer = 'g' . beam_new_code(4);
+        $db->prepare('UPDATE sessions SET guests = guests + 1, guest_seen = ? WHERE code = ?')
+           ->execute([$now, $code]);
+        beam_json(['ok' => true, 'peer' => $peer]);
     }
 
     case 'signal': {
         $code = beam_valid_code($in['code'] ?? null);
-        $role = ($in['role'] ?? '') === 'h' ? 'h' : 'g';
+        $from = beam_valid_peer($in['from'] ?? null);
+        $to = beam_valid_peer($in['to'] ?? null);
         $body = $in['body'] ?? null;
-        if ($code === null || !is_string($body) || strlen($body) > SIGNAL_MAX_BYTES) {
+        if ($code === null || $from === null || $to === null
+            || !is_string($body) || strlen($body) > SIGNAL_MAX_BYTES) {
             beam_json(['error' => 'bad request'], 400);
         }
         if (beam_session($db, $code) === null) {
             beam_json(['error' => 'expired'], 404);
         }
-        $db->prepare('INSERT INTO signals (code, sender, body, created) VALUES (?, ?, ?, ?)')
-           ->execute([$code, $role, $body, $now]);
+        $db->prepare('INSERT INTO msgs (code, sender, target, body, created) VALUES (?, ?, ?, ?, ?)')
+           ->execute([$code, $from, $to, $body, $now]);
         beam_json(['ok' => true]);
     }
 
     case 'poll': {
         $code = beam_valid_code($in['code'] ?? null);
-        $role = ($in['role'] ?? '') === 'h' ? 'h' : 'g';
+        $peer = beam_valid_peer($in['peer'] ?? null);
         $after = (int)($in['after'] ?? 0);
-        if ($code === null) {
+        if ($code === null || $peer === null) {
             beam_json(['error' => 'bad request'], 400);
         }
         $s = beam_session($db, $code);
         if ($s === null) {
             beam_json(['error' => 'expired'], 404);
         }
-        $col = $role === 'h' ? 'host_seen' : 'guest_seen';
+        $col = $peer === 'h' ? 'host_seen' : 'guest_seen';
         $db->prepare("UPDATE sessions SET $col = ? WHERE code = ?")->execute([$now, $code]);
-        $st = $db->prepare('SELECT id, body FROM signals WHERE code = ? AND sender != ? AND id > ? ORDER BY id LIMIT 50');
-        $st->execute([$code, $role, $after]);
+        $st = $db->prepare('SELECT id, sender, body FROM msgs WHERE code = ? AND target = ? AND id > ? ORDER BY id LIMIT 50');
+        $st->execute([$code, $peer, $after]);
         $msgs = $st->fetchAll(PDO::FETCH_ASSOC);
-        beam_json([
-            'msgs' => $msgs,
-            'peer' => $role === 'h' ? ((int)$s['guest_seen'] > 0) : true,
-        ]);
+        beam_json(['msgs' => $msgs, 'guests' => (int)($s['guests'] ?? 0)]);
     }
 
     default:

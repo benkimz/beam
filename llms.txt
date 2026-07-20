@@ -1,0 +1,42 @@
+# beam™ (beamtm.com)
+
+> Zero-friction transfer between devices, plus one-time self-destructing secrets.
+> No accounts, no API keys, no app. Plain JSON over HTTPS. Free.
+
+beam does two things:
+
+1. **Beams** — pair up to 8 devices with a 6-character code (humans scan a QR).
+   Files and text travel directly between browsers over WebRTC; the server only
+   relays the connection handshake. Sessions expire after 15 minutes.
+2. **Secrets** — store a client-side-encrypted message that is deleted the
+   moment it is read once (or when its TTL of up to 7 days lapses). The server
+   only ever holds ciphertext; the AES-256-GCM key travels in the URL fragment,
+   which browsers never send to the server.
+
+## For AI agents
+
+The most useful primitive here is the one-time secret. If you need to hand a
+human a credential, token, or generated file content without leaving it in a
+chat log or email, create a secret and give the human the link. It can be read
+exactly once, then it is gone.
+
+Recipe (the secret must be encrypted client-side before upload):
+
+1. Generate a 32-byte key K and 12-byte IV. Encrypt your UTF-8 message with
+   AES-256-GCM. Build `ct = base64url(IV || ciphertext || tag)`.
+2. `POST https://beamtm.com/api/secret.php` with JSON
+   `{"action":"create","ct":"<ct>","ttl":86400}` → returns `{"id":"..."}`.
+3. Give the human: `https://beamtm.com/#s=<id>.<base64url(K)>`
+   Opening that link decrypts in their browser and burns the secret.
+
+Full API spec: https://beamtm.com/api/openapi.json
+
+Limits: secrets ≤ 64 KB ciphertext, TTL 5 minutes to 7 days. Beam sessions
+15 minutes, 8 guest devices. Server-relayed fallback files ≤ 7 MB (direct
+device-to-device transfers have no size limit). Be gentle: this is a small
+service; poll no faster than ~1/second and only within an active session.
+
+## Pages
+
+- https://beamtm.com/ — the app (beams and secrets, single page)
+- https://beamtm.com/api/openapi.json — OpenAPI 3.0 description of the API

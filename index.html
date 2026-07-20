@@ -14,6 +14,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/style.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
 </head>
 <body>
 
@@ -31,13 +34,13 @@
 
   <section id="view-home">
     <h1>Send anything to any device.</h1>
-    <p class="sub">Open beam on both devices and scan the code. Files travel directly
-    between them — this server only makes the introduction.</p>
+    <p class="sub">Open beam on both devices and scan the code. Files go straight
+    from one device to the other — they're never uploaded here.</p>
 
     <div class="cards">
       <button class="card" id="btn-start">
         <h2>Beam files &amp; text</h2>
-        <p>Pair this device with another using a QR code, then drop anything across.</p>
+        <p>Pair your devices with a QR code — up to 8 at once — then drop anything across.</p>
         <span class="go">Start a beam →</span>
       </button>
       <button class="card" id="btn-secret">
@@ -47,6 +50,12 @@
         <span class="go">Write a secret →</span>
       </button>
     </div>
+
+    <ol class="steps">
+      <li><span>1</span><em>Press <strong>Start a beam</strong> on any of your devices</em></li>
+      <li><span>2</span><em>Scan the QR with your other device's camera, or type the code</em></li>
+      <li><span>3</span><em>Drop files or text on either end — beams flow both ways</em></li>
+    </ol>
 
     <div class="join-row">
       <label for="join-code">Got a code from another device?</label>
@@ -66,6 +75,7 @@
         and enter this code:</p>
         <div class="big-code" id="code-text">······</div>
         <p class="status" id="host-status">Waiting for your other device…</p>
+        <p class="note" style="margin-bottom:1.2em">Up to 8 devices can join this beam.</p>
         <button class="btn btn--ghost" id="btn-host-cancel">Cancel</button>
       </div>
     </div>

@@ -1,4 +1,4 @@
-/* beam™ — pairing, direct transfer, secrets */
+/* beam™ — pairing, direct multi-device transfer, secrets */
 (() => {
   "use strict";
 
@@ -6,24 +6,26 @@
   const views = ["home", "host", "link", "secret", "reveal"];
   const CHUNK = 16384;
   const HIGH_WATER = 1048576;
-  const RELAY_MAX = 15 * 1048576;
+  const RELAY_MAX = 7 * 1048576;
 
   const state = {
     code: null,
-    role: null,          // 'h' | 'g'
-    pc: null,
-    dc: null,
-    connected: false,
+    peer: null,          // my id: 'h' or 'gXXXX'
+    peers: new Map(),    // remoteId -> { pc, dc, open, pendingIce: [] }
     relayMode: false,
-    lastSignalId: 0,
+    lastMsgId: 0,
     pollTimer: null,
     fallbackTimer: null,
     sending: false,
     sendQueue: [],
-    incoming: null,      // { id, name, size, type, chunks, received, el }
-    pendingIce: [],
+    incomingBy: new Map(), // remoteId -> { id, name, size, type, chunks, received, el }
     counter: 0,
   };
+
+  const isHost = () => state.peer === "h";
+  const openPeers = () =>
+    [...state.peers.entries()].filter(([, p]) => p.open && p.dc.readyState === "open");
+  const anyOpen = () => openPeers().length > 0;
 
   // ---------- tiny helpers ----------
 
@@ -93,11 +95,17 @@
 
   // ---------- signaling ----------
 
-  async function sendSignal(obj) {
+  async function sendSignal(to, obj) {
     await api("beam.php", {
-      action: "signal", code: state.code, role: state.role,
+      action: "signal", code: state.code, from: state.peer, to,
       body: JSON.stringify(obj),
     });
+  }
+
+  function broadcastSignal(obj) {
+    for (const id of state.peers.keys()) {
+      sendSignal(id, obj).catch(() => {});
+    }
   }
 
   function startPolling() {
@@ -106,16 +114,17 @@
       if (!state.code) return;
       try {
         const d = await api("beam.php", {
-          action: "poll", code: state.code, role: state.role, after: state.lastSignalId,
+          action: "poll", code: state.code, peer: state.peer, after: state.lastMsgId,
         });
-        if (state.role === "h" && d.peer && !state.connected && !state.relayMode) {
+        if (isHost() && d.guests > 0 && !anyOpen() && !state.relayMode
+            && !$("view-host").hidden) {
           $("host-status").textContent = "Device found — connecting…";
         }
         for (const m of d.msgs) {
-          state.lastSignalId = Math.max(state.lastSignalId, m.id);
+          state.lastMsgId = Math.max(state.lastMsgId, m.id);
           let body;
           try { body = JSON.parse(m.body); } catch { continue; }
-          await handleSignal(body);
+          await handleSignal(m.sender, body);
         }
       } catch (e) {
         if (String(e.message).includes("expired") || String(e.message).includes("No beam")) {
@@ -123,7 +132,7 @@
           return;
         }
       }
-      state.pollTimer = setTimeout(tick, state.connected ? 4000 : 1200);
+      state.pollTimer = setTimeout(tick, anyOpen() ? 4000 : 1200);
     };
     tick();
   }
@@ -133,28 +142,32 @@
     state.pollTimer = null;
   }
 
-  async function handleSignal(msg) {
+  async function handleSignal(from, msg) {
     try {
-      if (msg.type === "offer") {
-        setupPeer(false);
-        await state.pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
-        await flushIce();
-        const ans = await state.pc.createAnswer();
-        await state.pc.setLocalDescription(ans);
-        await sendSignal({ type: "answer", sdp: ans.sdp });
+      if (msg.type === "offer" && isHost()) {
+        const p = createPeerFor(from, false);
+        await p.pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+        await flushIce(from);
+        const ans = await p.pc.createAnswer();
+        await p.pc.setLocalDescription(ans);
+        await sendSignal(from, { type: "answer", sdp: ans.sdp });
         armFallback();
-      } else if (msg.type === "answer" && state.pc) {
-        await state.pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
-        await flushIce();
+      } else if (msg.type === "answer") {
+        const p = state.peers.get(from);
+        if (p) {
+          await p.pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+          await flushIce(from);
+        }
       } else if (msg.type === "ice" && msg.c) {
-        if (state.pc && state.pc.remoteDescription) {
-          await state.pc.addIceCandidate(msg.c).catch(() => {});
-        } else {
-          state.pendingIce.push(msg.c);
+        const p = state.peers.get(from);
+        if (p && p.pc.remoteDescription) {
+          await p.pc.addIceCandidate(msg.c).catch(() => {});
+        } else if (p) {
+          p.pendingIce.push(msg.c);
         }
       } else if (msg.type === "text") {
         addTextTx("in", msg.body);
-        if (!state.connected) toast("Text received via relay.");
+        if (!anyOpen()) toast("Text received via relay.");
       } else if (msg.type === "relay-file") {
         receiveRelayFile(msg);
       }
@@ -165,50 +178,67 @@
 
   // ---------- WebRTC ----------
 
-  async function flushIce() {
-    const pend = state.pendingIce.splice(0);
+  async function flushIce(remoteId) {
+    const p = state.peers.get(remoteId);
+    if (!p) return;
+    const pend = p.pendingIce.splice(0);
     for (const c of pend) {
-      await state.pc.addIceCandidate(c).catch(() => {});
+      await p.pc.addIceCandidate(c).catch(() => {});
     }
   }
 
-  function setupPeer(initiator) {
-    if (state.pc) return;
+  function createPeerFor(remoteId, initiator) {
+    let p = state.peers.get(remoteId);
+    if (p) return p;
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
       ],
     });
-    state.pc = pc;
+    p = { pc, dc: null, open: false, pendingIce: [] };
+    state.peers.set(remoteId, p);
     pc.onicecandidate = (ev) => {
-      if (ev.candidate) sendSignal({ type: "ice", c: ev.candidate.toJSON() }).catch(() => {});
+      if (ev.candidate) sendSignal(remoteId, { type: "ice", c: ev.candidate.toJSON() }).catch(() => {});
     };
     if (initiator) {
-      attachChannel(pc.createDataChannel("beam", { ordered: true }));
+      attachChannel(remoteId, pc.createDataChannel("beam", { ordered: true }));
     } else {
-      pc.ondatachannel = (ev) => attachChannel(ev.channel);
+      pc.ondatachannel = (ev) => attachChannel(remoteId, ev.channel);
     }
+    return p;
   }
 
-  function attachChannel(dc) {
-    state.dc = dc;
+  function attachChannel(remoteId, dc) {
+    const p = state.peers.get(remoteId);
+    if (!p) return;
+    p.dc = dc;
     dc.binaryType = "arraybuffer";
     dc.bufferedAmountLowThreshold = 262144;
     dc.onopen = () => {
-      state.connected = true;
+      p.open = true;
       state.relayMode = false;
       clearTimeout(state.fallbackTimer);
       document.body.classList.add("beaming");
-      $("link-title").textContent = "Beamed in.";
-      $("link-status").textContent = "Connected directly — transfers are device-to-device.";
-      $("drop-hint").textContent = "any size · straight to the other device";
+      updateLinkStatus();
       show("link");
-      toast("Devices connected.");
+      toast(isHost() && openPeers().length > 1 ? "Another device connected." : "Devices connected.");
     };
     dc.onclose = () => {
-      if (state.code) {
-        state.connected = false;
+      p.open = false;
+      if (!state.code) return;
+      if (isHost()) {
+        state.peers.delete(remoteId);
+        state.incomingBy.delete(remoteId);
+        if (anyOpen()) {
+          updateLinkStatus();
+          toast("A device left the beam.");
+        } else {
+          document.body.classList.remove("beaming");
+          enterRelayMode("All devices disconnected — beaming via relay until they return.");
+        }
+      } else {
+        document.body.classList.remove("beaming");
         enterRelayMode("The direct connection dropped — falling back to relay.");
       }
     };
@@ -217,20 +247,36 @@
         let m;
         try { m = JSON.parse(ev.data); } catch { return; }
         if (m.t === "text") addTextTx("in", m.body);
-        else if (m.t === "file") beginIncoming(m);
-        else if (m.t === "end") finishIncoming();
+        else if (m.t === "file") beginIncoming(remoteId, m);
+        else if (m.t === "end") finishIncoming(remoteId);
       } else {
-        appendIncoming(ev.data);
+        appendIncoming(remoteId, ev.data);
       }
     };
+  }
+
+  function updateLinkStatus() {
+    const n = openPeers().length;
+    if (n > 0) {
+      $("link-title").textContent = "Beamed in.";
+      const st = $("link-status");
+      st.classList.add("live");
+      if (isHost()) {
+        st.textContent = "Connected to " + n + (n === 1 ? " device" : " devices") +
+          " · code " + state.code + " — more devices can join with it.";
+      } else {
+        st.textContent = "Connected directly — transfers are device-to-device.";
+      }
+      $("drop-hint").textContent = "any size · straight to the other device" + (n > 1 ? "s" : "");
+    }
   }
 
   async function startBeamAsHost() {
     try {
       const d = await api("beam.php", { action: "create" });
       state.code = d.code;
-      state.role = "h";
-      state.lastSignalId = 0;
+      state.peer = "h";
+      state.lastMsgId = 0;
       $("code-text").textContent = d.code;
       renderQR("https://beamtm.com/#j=" + d.code);
       $("host-status").textContent = "Waiting for your other device…";
@@ -249,15 +295,15 @@
       return;
     }
     try {
-      await api("beam.php", { action: "join", code });
+      const d = await api("beam.php", { action: "join", code });
       state.code = code;
-      state.role = "g";
-      state.lastSignalId = 0;
+      state.peer = d.peer;
+      state.lastMsgId = 0;
       history.replaceState(null, "", "/");
-      setupPeer(true);
-      const offer = await state.pc.createOffer();
-      await state.pc.setLocalDescription(offer);
-      await sendSignal({ type: "offer", sdp: offer.sdp });
+      const p = createPeerFor("h", true);
+      const offer = await p.pc.createOffer();
+      await p.pc.setLocalDescription(offer);
+      await sendSignal("h", { type: "offer", sdp: offer.sdp });
       $("link-title").textContent = "Connecting…";
       $("link-status").textContent = "Joining beam " + code + "…";
       show("link");
@@ -271,7 +317,7 @@
   function armFallback() {
     clearTimeout(state.fallbackTimer);
     state.fallbackTimer = setTimeout(() => {
-      if (!state.connected && state.code) {
+      if (!anyOpen() && state.code) {
         enterRelayMode("Couldn't connect directly (strict network) — using relay instead.");
       }
     }, 15000);
@@ -279,26 +325,29 @@
 
   function enterRelayMode(reason) {
     state.relayMode = true;
-    document.body.classList.remove("beaming");
     $("link-title").textContent = "Beaming via relay";
-    $("link-status").textContent = reason + " Files up to 15 MB.";
+    $("link-status").textContent = reason + " Files up to 7 MB.";
     $("link-status").classList.remove("live");
-    $("drop-hint").textContent = "up to 15 MB via relay";
+    $("drop-hint").textContent = "up to 7 MB via relay";
     show("link");
   }
 
   function endBeam(msg) {
     stopPolling();
     clearTimeout(state.fallbackTimer);
-    try { state.dc && state.dc.close(); } catch {}
-    try { state.pc && state.pc.close(); } catch {}
+    for (const [, p] of state.peers) {
+      try { p.dc && p.dc.close(); } catch {}
+      try { p.pc.close(); } catch {}
+    }
+    state.peers = new Map();
+    state.incomingBy = new Map();
     Object.assign(state, {
-      code: null, role: null, pc: null, dc: null, connected: false,
-      relayMode: false, lastSignalId: 0, sending: false, sendQueue: [], incoming: null,
-      pendingIce: [],
+      code: null, peer: null, relayMode: false, lastMsgId: 0,
+      sending: false, sendQueue: [],
     });
     document.body.classList.remove("beaming");
     $("transfers").innerHTML = "";
+    $("link-status").classList.add("live");
     if (msg) toast(msg);
     show("home");
   }
@@ -356,7 +405,7 @@
     if (!f) return;
     state.sending = true;
     try {
-      if (state.connected) await sendFileP2P(f);
+      if (anyOpen()) await sendFileP2P(f);
       else if (state.relayMode) await sendFileRelay(f);
       else toast("Not connected yet — hang on a moment.");
     } catch (e) {
@@ -374,27 +423,34 @@
   }
 
   async function sendFileP2P(f) {
-    const dc = state.dc;
+    const targets = openPeers();
+    const total = f.size * targets.length;
     const id = ++state.counter;
-    const el = txRow("out", f.name, fmtSize(f.size));
-    dc.send(JSON.stringify({ t: "file", id, name: f.name, size: f.size, type: f.type }));
-    let sent = 0;
-    for (let off = 0; off < f.size; off += CHUNK) {
-      const buf = await f.slice(off, off + CHUNK).arrayBuffer();
-      if (dc.readyState !== "open") throw new Error("connection closed");
-      if (dc.bufferedAmount > HIGH_WATER) await waitForDrain(dc);
-      dc.send(buf);
-      sent = Math.min(f.size, off + CHUNK);
-      el.querySelector(".bar i").style.width = (f.size ? (sent / f.size) * 100 : 100) + "%";
+    const el = txRow("out", f.name,
+      fmtSize(f.size) + (targets.length > 1 ? " · to " + targets.length + " devices" : ""));
+    let done = 0;
+    for (const [, p] of targets) {
+      const dc = p.dc;
+      if (dc.readyState !== "open") continue;
+      dc.send(JSON.stringify({ t: "file", id, name: f.name, size: f.size, type: f.type }));
+      for (let off = 0; off < f.size; off += CHUNK) {
+        const buf = await f.slice(off, off + CHUNK).arrayBuffer();
+        if (dc.readyState !== "open") break;
+        if (dc.bufferedAmount > HIGH_WATER) await waitForDrain(dc);
+        dc.send(buf);
+        done += Math.min(CHUNK, f.size - off);
+        el.querySelector(".bar i").style.width = (total ? (done / total) * 100 : 100) + "%";
+      }
+      if (dc.readyState === "open") dc.send(JSON.stringify({ t: "end", id }));
     }
-    dc.send(JSON.stringify({ t: "end", id }));
-    el.querySelector(".detail").textContent = fmtSize(f.size) + " · beamed";
+    el.querySelector(".detail").textContent = fmtSize(f.size) + " · beamed" +
+      (targets.length > 1 ? " to " + targets.length + " devices" : "");
     el.querySelector(".bar i").style.width = "100%";
   }
 
   async function sendFileRelay(f) {
     if (f.size > RELAY_MAX) {
-      toast("Relay is limited to 15 MB. For big files, connect both devices directly.");
+      toast("Relay is limited to 7 MB. For big files, connect both devices directly.");
       return;
     }
     const el = txRow("out", f.name, fmtSize(f.size) + " · uploading to relay");
@@ -409,7 +465,8 @@
       el.querySelector(".detail").textContent = "failed";
       throw new Error(d.error || "relay upload failed");
     }
-    await sendSignal({ type: "relay-file", name: f.name, size: f.size });
+    if (isHost()) broadcastSignal({ type: "relay-file", name: f.name, size: f.size });
+    else await sendSignal("h", { type: "relay-file", name: f.name, size: f.size });
     el.querySelector(".bar i").style.width = "100%";
     el.querySelector(".detail").textContent = fmtSize(f.size) + " · waiting for pickup";
   }
@@ -427,16 +484,16 @@
 
   // ---------- receiving (P2P) ----------
 
-  function beginIncoming(m) {
-    state.incoming = {
+  function beginIncoming(from, m) {
+    state.incomingBy.set(from, {
       id: m.id, name: m.name || "beamed-file", size: m.size || 0, type: m.type || "",
       chunks: [], received: 0,
       el: txRow("in", m.name || "beamed-file", fmtSize(m.size || 0)),
-    };
+    });
   }
 
-  function appendIncoming(buf) {
-    const inc = state.incoming;
+  function appendIncoming(from, buf) {
+    const inc = state.incomingBy.get(from);
     if (!inc) return;
     inc.chunks.push(buf);
     inc.received += buf.byteLength;
@@ -444,10 +501,10 @@
       (inc.size ? (inc.received / inc.size) * 100 : 100) + "%";
   }
 
-  function finishIncoming() {
-    const inc = state.incoming;
+  function finishIncoming(from) {
+    const inc = state.incomingBy.get(from);
     if (!inc) return;
-    state.incoming = null;
+    state.incomingBy.delete(from);
     const blob = new Blob(inc.chunks, { type: inc.type || "application/octet-stream" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -552,13 +609,14 @@
   $("btn-send-text").onclick = async () => {
     const v = $("text-input").value;
     if (!v.trim()) return;
-    if (state.connected) {
-      state.dc.send(JSON.stringify({ t: "text", body: v }));
+    if (anyOpen()) {
+      for (const [, p] of openPeers()) p.dc.send(JSON.stringify({ t: "text", body: v }));
       addTextTx("out", v);
       $("text-input").value = "";
     } else if (state.relayMode) {
       try {
-        await sendSignal({ type: "text", body: v });
+        if (isHost()) broadcastSignal({ type: "text", body: v });
+        else await sendSignal("h", { type: "text", body: v });
         addTextTx("out", v);
         $("text-input").value = "";
       } catch (e) { toast(e.message); }

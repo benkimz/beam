@@ -101,6 +101,20 @@ body.beaming .beamline__core { opacity: .9; }
   * { transition: none !important; }
 }
 
+/* the beam needs more light to read as one ray on dark surfaces */
+@media (prefers-color-scheme: dark) {
+  .beamline__glow {
+    background: linear-gradient(90deg,
+      transparent 6%,
+      rgba(43, 217, 255, .24) 30%,
+      rgba(122, 90, 255, .30) 52%,
+      rgba(255, 169, 77, .22) 74%,
+      transparent 94%);
+    filter: blur(30px);
+  }
+  .beamline__core { opacity: .85; }
+}
+
 /* ---- shell ---- */
 
 header, main, footer { position: relative; z-index: 1; }
@@ -208,6 +222,35 @@ h2 {
   font-size: .85rem;
   font-weight: 600;
   color: var(--pulse);
+}
+
+.steps {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin-bottom: 26px;
+  color: var(--dim);
+  font-size: .92rem;
+}
+
+.steps li { display: flex; align-items: center; gap: 9px; }
+.steps em { font-style: normal; }
+.steps strong { color: var(--ink); }
+
+.steps li span {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--pulse);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  width: 1.8em;
+  height: 1.8em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
 }
 
 .join-row {

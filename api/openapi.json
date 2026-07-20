@@ -1,0 +1,88 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "beam™ API",
+    "version": "2.0.0",
+    "description": "Device-to-device beaming (WebRTC signaling for up to 8 devices per session) and one-time self-destructing secrets. No authentication; sessions are capability-based (knowing the code/id is the capability). Secrets must be encrypted client-side with AES-256-GCM; the server stores ciphertext only. See https://beamtm.com/llms.txt for an agent-oriented guide."
+  },
+  "servers": [{ "url": "https://beamtm.com/api" }],
+  "paths": {
+    "/beam.php": {
+      "post": {
+        "summary": "Beam session signaling",
+        "description": "Single endpoint, dispatched on `action`: `create` a session (returns 6-char code), `join` a session (returns your peer id, e.g. gK4M2), `signal` (send a message addressed to another peer id; `h` is the host), `poll` (fetch messages addressed to you with id greater than `after`). Sessions expire 15 minutes after creation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                  "action": { "type": "string", "enum": ["create", "join", "signal", "poll"] },
+                  "code": { "type": "string", "pattern": "^[A-Z2-9]{6}$" },
+                  "from": { "type": "string", "description": "signal only: your peer id" },
+                  "to": { "type": "string", "description": "signal only: recipient peer id ('h' = host)" },
+                  "peer": { "type": "string", "description": "poll only: your peer id" },
+                  "after": { "type": "integer", "description": "poll only: return messages with id > after" },
+                  "body": { "type": "string", "maxLength": 65536, "description": "signal only: opaque message payload (JSON string by convention)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "create: {code, ttl, maxGuests} · join: {ok, peer} · signal: {ok} · poll: {msgs: [{id, sender, body}], guests}" },
+          "404": { "description": "Unknown or expired code" },
+          "409": { "description": "join: beam is full (8 guests)" }
+        }
+      }
+    },
+    "/secret.php": {
+      "post": {
+        "summary": "One-time self-destructing secrets",
+        "description": "`create` stores base64url ciphertext (encrypt client-side: AES-256-GCM, payload = IV(12 bytes) || ciphertext || tag) and returns an id. `read` returns the ciphertext exactly once, atomically deleting it. Share as https://beamtm.com/#s=<id>.<base64url key> — the key in the URL fragment never reaches the server.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                  "action": { "type": "string", "enum": ["create", "read"] },
+                  "ct": { "type": "string", "maxLength": 65536, "description": "create only: base64url(IV || AES-GCM ciphertext)" },
+                  "ttl": { "type": "integer", "minimum": 300, "maximum": 604800, "default": 86400, "description": "create only: seconds until unread secret is deleted" },
+                  "id": { "type": "string", "description": "read only: secret id" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "create: {id, expires} · read: {ct}" },
+          "404": { "description": "read: {gone: true} — already read, expired, or never existed" }
+        }
+      }
+    },
+    "/relay.php": {
+      "post": {
+        "summary": "Upload a fallback relay file to an active beam session",
+        "description": "Raw request body is the file (max 7 MB). Headers: X-Beam-Code (session code), X-Beam-Name (filename). One file per session; overwritten by later uploads, deleted on download or when the session expires.",
+        "responses": {
+          "200": { "description": "{ok, size}" },
+          "404": { "description": "Session expired" },
+          "413": { "description": "File exceeds 7 MB" }
+        }
+      },
+      "get": {
+        "summary": "Download and delete the waiting relay file",
+        "parameters": [{ "name": "code", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[A-Z2-9]{6}$" } }],
+        "responses": {
+          "200": { "description": "The file bytes (application/octet-stream). Deleted after this response." },
+          "404": { "description": "Nothing waiting" }
+        }
+      }
+    }
+  }
+}
