@@ -3,5 +3,7 @@ Allow: /
 Disallow: /api/
 Allow: /api/openapi.json
 
+Sitemap: https://beamtm.com/sitemap.xml
+
 # AI agents welcome. Machine-readable guide: https://beamtm.com/llms.txt
 # API spec: https://beamtm.com/api/openapi.json

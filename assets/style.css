@@ -224,12 +224,30 @@ h2 {
   color: var(--pulse);
 }
 
+/* ---- hero: copy left, live vignette right; stacks on small screens ---- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: clamp(24px, 4vw, 52px);
+  align-items: center;
+  margin-bottom: clamp(22px, 4.5vh, 44px);
+}
+
+.hero .sub { margin-bottom: 0; }
+
+@media (max-width: 840px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero .howto { justify-self: start; max-width: 520px; }
+}
+
 /* ---- how-it-works vignette: laptop pairs with phone, packets fly both ways.
    One shared 10s timeline; every element keys off the same percentages. ---- */
 
 .howto {
-  max-width: 640px;
-  margin-bottom: 26px;
+  width: 100%;
+  max-width: 470px;
+  justify-self: end;
 }
 
 .howto svg { width: 100%; height: auto; display: block; }
@@ -577,6 +595,40 @@ textarea#secret-text {
   white-space: pre-wrap;
   word-break: break-word;
   margin: 1em 0;
+}
+
+/* ---- faq ---- */
+
+.faq {
+  margin-top: clamp(34px, 7vh, 64px);
+  max-width: 46em;
+}
+
+.faq h2 { margin-bottom: .7em; }
+
+.faq details {
+  border-top: 1px solid var(--line);
+  padding: 15px 0;
+}
+
+.faq details:last-of-type { border-bottom: 1px solid var(--line); }
+
+.faq summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.faq summary::marker { color: var(--pulse); }
+
+.faq summary:focus-visible {
+  outline: 3px solid var(--violet);
+  outline-offset: 2px;
+}
+
+.faq details p {
+  color: var(--dim);
+  margin-top: 10px;
+  max-width: 44em;
 }
 
 /* ---- footer & toast ---- */

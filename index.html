@@ -4,18 +4,37 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>beam™ — send anything to any device</title>
-<meta name="description" content="Beam files and text directly between your devices with a QR code, or send a secret that burns after reading. No app, no account.">
-<meta property="og:title" content="beam™">
-<meta property="og:description" content="Send anything to any device. No app, no account.">
+<meta name="description" content="Share files and text directly between iPhone, Android, Windows or Mac with a QR code — no app, no account, no size limit. Plus one-time secret messages that burn after reading.">
+<link rel="canonical" href="https://beamtm.com/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="beam™">
+<meta property="og:title" content="beam™ — send anything to any device">
+<meta property="og:description" content="Share files and text directly between your devices with a QR code — no app, no account, no size limit. Plus secrets that burn after reading.">
 <meta property="og:url" content="https://beamtm.com/">
+<meta property="og:image" content="https://beamtm.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="beam™ — send anything to any device">
+<meta name="twitter:description" content="Files and text straight between devices. No app, no account, no size limit.">
+<meta name="twitter:image" content="https://beamtm.com/og.png">
 <meta name="theme-color" content="#5F49F5">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%232BD9FF'/%3E%3Cstop offset='.5' stop-color='%237A5AFF'/%3E%3Cstop offset='1' stop-color='%23FFA94D'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%23101724'/%3E%3Crect x='2' y='29' width='86' height='6' rx='3' fill='url(%23g)' transform='rotate(-24 32 32)'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=3">
+<link rel="stylesheet" href="/assets/style.css?v=4">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Do I need to install an app or create an account?","acceptedAnswer":{"@type":"Answer","text":"No. beam runs entirely in your web browser. Open beamtm.com on both devices, scan the QR code (or type the 6-character code), and you're connected. Nothing to install, nothing to sign up for, and it's free."}},
+{"@type":"Question","name":"Does it work between iPhone, Android, Windows, Mac and Linux?","acceptedAnswer":{"@type":"Answer","text":"Yes — any mix. beam is a good AirDrop alternative when your devices don't share an ecosystem: iPhone to Windows PC, Android to Mac, laptop to laptop. If a device has a modern browser, it can beam."}},
+{"@type":"Question","name":"How big can the files be, and how fast is it?","acceptedAnswer":{"@type":"Answer","text":"Direct beams have no size limit — files travel straight between your devices over an encrypted peer-to-peer connection, so speed depends on your network, not on us. If a strict network blocks the direct route, beam falls back to a relay for files up to 7 MB."}},
+{"@type":"Question","name":"Are my files private? Where are they stored?","acceptedAnswer":{"@type":"Answer","text":"Beamed files are never uploaded to or stored on this server — they move device-to-device over an encrypted WebRTC connection. The server's only job is introducing your devices to each other, and beam sessions self-destruct after 15 minutes."}},
+{"@type":"Question","name":"What is a one-time secret?","acceptedAnswer":{"@type":"Answer","text":"A self-destructing message. Write it, get a link, send the link to anyone — it can be opened exactly once, then it's permanently deleted. The message is encrypted in your browser before it leaves the page, and the decryption key stays in the link itself, so the server can never read what you wrote. Ideal for sharing passwords and other things that don't belong in chat history."}}
+]}
 </script>
 </head>
 <body>
@@ -33,25 +52,13 @@
 <main>
 
   <section id="view-home">
-    <h1>Send anything to any device.</h1>
-    <p class="sub">Open beam on both devices and scan the code. Files go straight
-    from one device to the other — they're never uploaded here.</p>
-
-    <div class="cards">
-      <button class="card" id="btn-start">
-        <h2>Beam files &amp; text</h2>
-        <p>Pair your devices with a QR code — up to 8 at once — then drop anything across.</p>
-        <span class="go">Start a beam →</span>
-      </button>
-      <button class="card" id="btn-secret">
-        <h2>Send a secret</h2>
-        <p>Write a message that burns after one reading. Encrypted in your browser —
-        we never see it.</p>
-        <span class="go">Write a secret →</span>
-      </button>
-    </div>
-
-    <div class="howto" aria-label="How it works: start a beam on one device, scan the QR code with the other, then drop files in either direction.">
+    <div class="hero">
+      <div class="hero-copy">
+        <h1>Send anything to any device.</h1>
+        <p class="sub">Open beam on both devices and scan the code. Files go straight
+        from one device to the other — they're never uploaded here.</p>
+      </div>
+      <div class="howto" aria-label="How it works: start a beam on one device, scan the QR code with the other, then drop files in either direction.">
       <svg viewBox="0 0 720 200" aria-hidden="true" focusable="false">
         <defs>
           <linearGradient id="hwg" x1="0" y1="0" x2="1" y2="0">
@@ -114,6 +121,21 @@
         <span class="hw-cap2">Scan the code with the other — or type it</span>
         <span class="hw-cap3">Drop anything, on either end — beams flow both ways</span>
       </p>
+      </div>
+    </div>
+
+    <div class="cards">
+      <button class="card" id="btn-start">
+        <h2>Beam files &amp; text</h2>
+        <p>Pair your devices with a QR code — up to 8 at once — then drop anything across.</p>
+        <span class="go">Start a beam →</span>
+      </button>
+      <button class="card" id="btn-secret">
+        <h2>Send a secret</h2>
+        <p>Write a message that burns after one reading. Encrypted in your browser —
+        we never see it.</p>
+        <span class="go">Write a secret →</span>
+      </button>
     </div>
 
     <div class="join-row">
@@ -121,6 +143,44 @@
       <input type="text" id="join-code" maxlength="6" autocomplete="off"
              spellcheck="false" placeholder="ABC123">
       <button class="btn btn--ghost" id="btn-join">Join</button>
+    </div>
+
+    <div class="faq">
+      <h2>Questions, answered</h2>
+      <details>
+        <summary>Do I need to install an app or create an account?</summary>
+        <p>No. beam runs entirely in your web browser. Open beamtm.com on both devices,
+        scan the QR code (or type the 6-character code), and you're connected. Nothing to
+        install, nothing to sign up for, and it's free.</p>
+      </details>
+      <details>
+        <summary>Does it work between iPhone, Android, Windows, Mac and Linux?</summary>
+        <p>Yes — any mix. beam is a good AirDrop alternative when your devices don't share
+        an ecosystem: iPhone to Windows PC, Android to Mac, laptop to laptop. If a device
+        has a modern browser, it can beam.</p>
+      </details>
+      <details>
+        <summary>How big can the files be, and how fast is it?</summary>
+        <p>Direct beams have no size limit — files travel straight between your devices
+        over an encrypted peer-to-peer connection, so speed depends on your network, not
+        on us. If a strict network blocks the direct route, beam falls back to a relay
+        for files up to 7 MB.</p>
+      </details>
+      <details>
+        <summary>Are my files private? Where are they stored?</summary>
+        <p>Beamed files are never uploaded to or stored on this server — they move
+        device-to-device over an encrypted WebRTC connection. The server's only job is
+        introducing your devices to each other, and beam sessions self-destruct after
+        15 minutes.</p>
+      </details>
+      <details>
+        <summary>What is a one-time secret?</summary>
+        <p>A self-destructing message. Write it, get a link, send the link to anyone —
+        it can be opened exactly once, then it's permanently deleted. The message is
+        encrypted in your browser before it leaves the page, and the decryption key stays
+        in the link itself, so the server can never read what you wrote. Ideal for sharing
+        passwords and other things that don't belong in chat history.</p>
+      </details>
     </div>
   </section>
 
