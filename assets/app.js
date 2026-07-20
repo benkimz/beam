@@ -506,14 +506,78 @@
     if (!inc) return;
     state.incomingBy.delete(from);
     const blob = new Blob(inc.chunks, { type: inc.type || "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    if (previewKind(blob.type, inc.name)) {
+      const pv = document.createElement("a");
+      pv.href = "#";
+      pv.textContent = "Preview";
+      pv.onclick = (e) => { e.preventDefault(); openPreview(blob, inc.name, url); };
+      inc.el.append(pv);
+    }
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = inc.name;
     a.textContent = "Save";
     inc.el.append(a);
     inc.el.querySelector(".detail").textContent = fmtSize(blob.size) + " · received";
     inc.el.querySelector(".bar i").style.width = "100%";
     toast("Received “" + inc.name + "”.");
+  }
+
+  // ---------- preview lightbox ----------
+
+  function previewKind(type, name) {
+    const t = (type || "").toLowerCase();
+    if (t.startsWith("image/")) return "image";
+    if (t.startsWith("video/")) return "video";
+    if (t.startsWith("audio/")) return "audio";
+    if (t === "application/pdf") return "pdf";
+    if (t.startsWith("text/") || t === "application/json"
+        || /\.(txt|md|json|csv|log|js|py|html|css|xml|yml|yaml)$/i.test(name || "")) return "text";
+    return null;
+  }
+
+  function openPreview(blob, name, url) {
+    const kind = previewKind(blob.type, name);
+    const body = $("lb-body");
+    body.innerHTML = "";
+    $("lb-name").textContent = name;
+    const save = $("lb-save");
+    save.href = url;
+    save.setAttribute("download", name);
+    let el = null;
+    if (kind === "image") {
+      el = new Image();
+      el.src = url;
+      el.alt = name;
+    } else if (kind === "video") {
+      el = document.createElement("video");
+      el.src = url;
+      el.controls = true;
+      el.playsInline = true;
+    } else if (kind === "audio") {
+      el = document.createElement("audio");
+      el.src = url;
+      el.controls = true;
+    } else if (kind === "pdf") {
+      el = document.createElement("iframe");
+      el.src = url;
+      el.title = name;
+    } else if (kind === "text") {
+      el = document.createElement("pre");
+      el.textContent = "Loading…";
+      blob.slice(0, 2097152).text().then((t) => {
+        el.textContent = t + (blob.size > 2097152 ? "\n… (preview truncated)" : "");
+      });
+    }
+    if (el) body.append(el);
+    $("lightbox").hidden = false;
+    $("lb-close").focus();
+  }
+
+  function closePreview() {
+    $("lightbox").hidden = true;
+    $("lb-body").innerHTML = ""; // removing the element also stops any playback
   }
 
   // ---------- QR ----------
@@ -626,6 +690,14 @@
   };
   $("text-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter") $("btn-send-text").click();
+  });
+
+  $("lb-close").onclick = closePreview;
+  $("lightbox").addEventListener("click", (e) => {
+    if (e.target === $("lightbox")) closePreview();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("lightbox").hidden) closePreview();
   });
 
   $("btn-secret-create").onclick = createSecret;

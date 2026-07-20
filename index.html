@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=5">
+<link rel="stylesheet" href="/assets/style.css?v=6">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -290,9 +290,23 @@
   15 minutes. · © 2026 beam™</p>
 </footer>
 
+<div id="lightbox" hidden role="dialog" aria-modal="true" aria-label="File preview">
+  <div class="lb-panel">
+    <div class="lb-head">
+      <span id="lb-name"></span>
+      <button class="btn btn--ghost" id="lb-close">Close</button>
+    </div>
+    <div class="lb-body" id="lb-body"></div>
+    <div class="lb-foot">
+      <span class="note">Nothing is saved until you say so.</span>
+      <a class="btn" id="lb-save" download>Save to device</a>
+    </div>
+  </div>
+</div>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/qr.js?v=1"></script>
-<script src="/assets/app.js?v=3"></script>
+<script src="/assets/app.js?v=6"></script>
 </body>
 </html>
