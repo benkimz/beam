@@ -687,7 +687,9 @@ textarea#secret-text {
 }
 
 #reveal-text {
-  font: inherit;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .92rem;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
   margin: 1em 0;
