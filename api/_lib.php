@@ -31,10 +31,11 @@ function beam_db(): PDO {
         code TEXT PRIMARY KEY,
         created INTEGER NOT NULL,
         host_seen INTEGER NOT NULL,
-        guest_seen INTEGER NOT NULL DEFAULT 0
+        guest_seen INTEGER NOT NULL DEFAULT 0,
+        guests INTEGER NOT NULL DEFAULT 0
     )');
+    // migration for databases created before the guests column existed
     try { $db->exec('ALTER TABLE sessions ADD COLUMN guests INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
-    $db->exec('DROP TABLE IF EXISTS signals');
     $db->exec('CREATE TABLE IF NOT EXISTS msgs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL,

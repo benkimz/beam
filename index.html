@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=7">
+<link rel="stylesheet" href="/assets/style.css?v=8">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -142,8 +142,9 @@
     <div class="join-row">
       <label for="join-code">Got a code from another device?</label>
       <input type="text" id="join-code" maxlength="6" autocomplete="off"
-             spellcheck="false" placeholder="ABC123">
+             autocapitalize="characters" spellcheck="false" placeholder="ABC123">
       <button class="btn btn--ghost" id="btn-join">Join</button>
+      <button class="btn btn--ghost" id="btn-scan">Scan QR</button>
     </div>
 
     <div class="faq">
@@ -206,7 +207,7 @@
     <h2 id="link-title">Beamed in.</h2>
     <p class="status live" id="link-status">Connected directly — transfers are device-to-device.</p>
 
-    <div class="link-grid">
+    <div class="link-grid solo" id="link-grid">
       <div class="link-main">
         <div class="dropzone" id="drop-zone" role="button" tabindex="0"
              aria-label="Choose files to beam">
@@ -300,6 +301,14 @@
   15 minutes. · © 2026 beam™</p>
 </footer>
 
+<div id="scanner" hidden role="dialog" aria-modal="true" aria-label="Scan a beam QR code">
+  <div class="scan-panel">
+    <video id="scan-video" playsinline muted></video>
+    <p class="note" id="scan-status">Point your camera at the beam QR code.</p>
+    <button class="btn btn--ghost" id="btn-scan-close">Cancel</button>
+  </div>
+</div>
+
 <div id="lightbox" hidden role="dialog" aria-modal="true" aria-label="File preview">
   <div class="lb-panel">
     <div class="lb-head">
@@ -317,6 +326,6 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/qr.js?v=1"></script>
-<script src="/assets/app.js?v=7"></script>
+<script src="/assets/app.js?v=8"></script>
 </body>
 </html>

@@ -19,6 +19,7 @@
     sending: false,
     sendQueue: [],
     incomingBy: new Map(), // remoteId -> { id, name, size, type, chunks, received, el }
+    objectUrls: [],
     counter: 0,
   };
 
@@ -50,7 +51,12 @@
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Something went wrong — try again.");
+    if (!res.ok) {
+      const err = new Error(data.error || "Something went wrong — try again.");
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
     return data;
   }
 
@@ -255,8 +261,13 @@
     };
   }
 
+  function setInviteVisible(visible) {
+    $("invite-box").hidden = !visible;
+    $("link-grid").classList.toggle("solo", !visible);
+  }
+
   function updateLinkStatus() {
-    $("invite-box").hidden = !isHost() || !state.code;
+    setInviteVisible(isHost() && !!state.code);
     const n = openPeers().length;
     if (n > 0) {
       $("link-title").textContent = "Beamed in.";
@@ -279,8 +290,9 @@
       state.peer = "h";
       state.lastMsgId = 0;
       $("code-text").textContent = d.code;
-      renderQR("https://beamtm.com/#j=" + d.code, "qr-box");
-      renderQR("https://beamtm.com/#j=" + d.code, "qr-mini");
+      const joinUrl = location.origin + "/#j=" + d.code;
+      renderQR(joinUrl, "qr-box");
+      renderQR(joinUrl, "qr-mini");
       $("code-mini").textContent = d.code;
       $("host-status").textContent = "Waiting for your other device…";
       show("host");
@@ -297,6 +309,7 @@
       toast("Codes are 6 letters and numbers, like KX4M2P.");
       return;
     }
+    if (state.code) endBeam(); // leave any current beam before joining another
     try {
       const d = await api("beam.php", { action: "join", code });
       state.code = code;
@@ -328,7 +341,7 @@
 
   function enterRelayMode(reason) {
     state.relayMode = true;
-    $("invite-box").hidden = !isHost() || !state.code;
+    setInviteVisible(isHost() && !!state.code);
     $("link-title").textContent = "Beaming via relay";
     $("link-status").textContent = reason + " Files up to 7 MB.";
     $("link-status").classList.remove("live");
@@ -350,8 +363,10 @@
       sending: false, sendQueue: [],
     });
     document.body.classList.remove("beaming");
+    closePreview();
     $("transfers").innerHTML = "";
-    $("invite-box").hidden = true;
+    for (const u of state.objectUrls.splice(0)) URL.revokeObjectURL(u);
+    setInviteVisible(false);
     $("qr-mini").innerHTML = "";
     $("link-status").classList.add("live");
     if (msg) toast(msg);
@@ -513,6 +528,7 @@
     state.incomingBy.delete(from);
     const blob = new Blob(inc.chunks, { type: inc.type || "application/octet-stream" });
     const url = URL.createObjectURL(blob);
+    state.objectUrls.push(url);
     if (previewKind(blob.type, inc.name)) {
       const pv = document.createElement("a");
       pv.href = "#";
@@ -595,6 +611,94 @@
     $(elId).innerHTML = qr.createSvgTag({ cellSize: 5, margin: 0, scalable: true });
   }
 
+  // ---------- QR scanner (BarcodeDetector where available, jsQR fallback) ----------
+
+  let scanStream = null;
+  let scanRAF = null;
+
+  async function openScanner() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast("This browser can't open the camera — type the code instead.");
+      return;
+    }
+    $("scanner").hidden = false;
+    $("scan-status").textContent = "Point your camera at the beam QR code.";
+    try {
+      scanStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+    } catch {
+      closeScanner();
+      toast("Couldn't open the camera — check permission, or type the code.");
+      return;
+    }
+    const v = $("scan-video");
+    v.srcObject = scanStream;
+    await v.play().catch(() => {});
+
+    let detector = null;
+    if ("BarcodeDetector" in window) {
+      try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch {}
+    }
+    if (!detector && !window.jsQR) {
+      $("scan-status").textContent = "Loading scanner…";
+      await new Promise((resolve) => {
+        const s = document.createElement("script");
+        s.src = "/assets/jsqr.js?v=1";
+        s.onload = resolve;
+        s.onerror = resolve;
+        document.head.append(s);
+      });
+      if (!window.jsQR) {
+        closeScanner();
+        toast("Scanning isn't supported here — type the code instead.");
+        return;
+      }
+      $("scan-status").textContent = "Point your camera at the beam QR code.";
+    }
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const tick = async () => {
+      if ($("scanner").hidden) return;
+      if (v.readyState >= 2 && v.videoWidth) {
+        let text = null;
+        if (detector) {
+          const codes = await detector.detect(v).catch(() => []);
+          if (codes.length) text = codes[0].rawValue;
+        } else {
+          canvas.width = v.videoWidth;
+          canvas.height = v.videoHeight;
+          ctx.drawImage(v, 0, 0);
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const r = window.jsQR(img.data, img.width, img.height);
+          if (r) text = r.data;
+        }
+        if (text) {
+          const m = text.match(/#j=([A-Za-z2-9]{6})\b/) || text.match(/^\s*([A-Za-z2-9]{6})\s*$/);
+          if (m) {
+            closeScanner();
+            joinBeam(m[1]);
+            return;
+          }
+          $("scan-status").textContent = "That QR isn't a beam code — keep looking.";
+        }
+      }
+      scanRAF = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  function closeScanner() {
+    cancelAnimationFrame(scanRAF);
+    if (scanStream) {
+      scanStream.getTracks().forEach((t) => t.stop());
+      scanStream = null;
+    }
+    $("scan-video").srcObject = null;
+    $("scanner").hidden = true;
+  }
+
   // ---------- secrets ----------
 
   async function createSecret() {
@@ -616,7 +720,7 @@
       const d = await api("secret.php", {
         action: "create", ct: b64u.enc(packed), ttl: parseInt($("secret-ttl").value, 10),
       });
-      $("secret-link").value = "https://beamtm.com/#s=" + d.id + "." + b64u.enc(keyBytes);
+      $("secret-link").value = location.origin + "/#s=" + d.id + "." + b64u.enc(keyBytes);
       $("secret-compose").hidden = true;
       $("secret-done").hidden = false;
       $("secret-text").value = "";
@@ -629,8 +733,10 @@
   async function revealSecret(id, keyStr) {
     const btn = $("btn-reveal");
     btn.disabled = true;
+    let fetched = false;
     try {
       const d = await api("secret.php", { action: "read", id });
+      fetched = true;
       const packed = b64u.dec(d.ct);
       const key = await crypto.subtle.importKey("raw", b64u.dec(keyStr), "AES-GCM", false, ["decrypt"]);
       const plain = await crypto.subtle.decrypt(
@@ -639,11 +745,18 @@
       $("reveal-text").textContent = new TextDecoder().decode(plain);
       $("reveal-intro").hidden = true;
       $("reveal-out").hidden = false;
+      history.replaceState(null, "", "/");
     } catch (e) {
+      if (!fetched && e.status === undefined) {
+        // network failure — the secret is still intact, let them retry
+        toast("Couldn't reach the server — check your connection and try again.");
+        btn.disabled = false;
+        return;
+      }
       $("reveal-intro").hidden = true;
       $("reveal-gone").hidden = false;
+      history.replaceState(null, "", "/");
     }
-    history.replaceState(null, "", "/");
   }
 
   // ---------- wiring ----------
@@ -698,12 +811,17 @@
     if (e.key === "Enter") $("btn-send-text").click();
   });
 
+  $("btn-scan").onclick = openScanner;
+  $("btn-scan-close").onclick = closeScanner;
+
   $("lb-close").onclick = closePreview;
   $("lightbox").addEventListener("click", (e) => {
     if (e.target === $("lightbox")) closePreview();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$("lightbox").hidden) closePreview();
+    if (e.key !== "Escape") return;
+    if (!$("lightbox").hidden) closePreview();
+    if (!$("scanner").hidden) closeScanner();
   });
 
   $("btn-secret-create").onclick = createSecret;
@@ -732,8 +850,12 @@
       if (dot > 0) {
         const id = rest.slice(0, dot);
         const key = rest.slice(dot + 1);
-        show("reveal");
+        $("reveal-intro").hidden = false;
+        $("reveal-out").hidden = true;
+        $("reveal-gone").hidden = true;
+        $("btn-reveal").disabled = false;
         $("btn-reveal").onclick = () => revealSecret(id, key);
+        show("reveal");
         return;
       }
       show("home");
@@ -741,6 +863,11 @@
       show("home");
     }
   }
+
+  window.addEventListener("hashchange", () => {
+    if (state.code) return; // never yank an active beam
+    route();
+  });
 
   route();
 })();

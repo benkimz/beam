@@ -103,6 +103,8 @@ There is no build step — edit the files, refresh, done. Two things to know:
 
 - QR rendering: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)
   by Kazuhiko Arase (MIT), vendored as `assets/qr.js`.
+- QR scanning fallback: [jsQR](https://github.com/cozmo/jsQR) by Cosmo Wolfe (Apache-2.0),
+  vendored as `assets/jsqr.js`, lazy-loaded only when the camera scanner needs it.
 - Type: [Unbounded](https://fonts.google.com/specimen/Unbounded),
   [Atkinson Hyperlegible](https://fonts.google.com/specimen/Atkinson+Hyperlegible)
   and IBM Plex Mono, all under the SIL Open Font License

@@ -17,6 +17,10 @@ $now = time();
 
 switch ($action) {
     case 'create': {
+        $live = (int)$db->query('SELECT COUNT(*) FROM sessions WHERE created >= ' . (time() - SESSION_TTL))->fetchColumn();
+        if ($live > 2000) {
+            beam_json(['error' => 'beam is busy right now — try again in a minute'], 503);
+        }
         $code = null;
         for ($i = 0; $i < 8; $i++) {
             $try = beam_new_code();
@@ -45,12 +49,14 @@ switch ($action) {
             usleep(400000); // slow down code guessing
             beam_json(['error' => 'No beam with that code. It may have expired — beams last 15 minutes.'], 404);
         }
-        if ((int)($s['guests'] ?? 0) >= MAX_GUESTS) {
+        // atomic slot claim: two simultaneous joins can't both take the last seat
+        $st = $db->prepare('UPDATE sessions SET guests = guests + 1, guest_seen = ?
+                            WHERE code = ? AND guests < ' . MAX_GUESTS);
+        $st->execute([$now, $code]);
+        if ($st->rowCount() === 0) {
             beam_json(['error' => 'This beam is full — up to ' . MAX_GUESTS . ' devices can join.'], 409);
         }
         $peer = 'g' . beam_new_code(4);
-        $db->prepare('UPDATE sessions SET guests = guests + 1, guest_seen = ? WHERE code = ?')
-           ->execute([$now, $code]);
         beam_json(['ok' => true, 'peer' => $peer]);
     }
 
