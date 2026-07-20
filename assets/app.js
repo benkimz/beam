@@ -757,12 +757,24 @@
 
   // ---------- secrets ----------
 
+  const SECRET_MAX_CHARS = 40000;
+
+  function updateSecretCount() {
+    const n = $("secret-text").value.length;
+    const el = $("secret-count");
+    el.textContent = n ? n.toLocaleString() + " / " + SECRET_MAX_CHARS.toLocaleString() : "";
+    el.classList.toggle("warn", n > SECRET_MAX_CHARS);
+  }
+
   async function createSecret() {
     const text = $("secret-text").value;
     if (!text.trim()) { toast("Write the secret first."); return; }
-    if (text.length > 40000) { toast("Secrets are limited to 40,000 characters."); return; }
+    if (text.length > SECRET_MAX_CHARS) { toast("Secrets are limited to 40,000 characters."); return; }
     const btn = $("btn-secret-create");
     btn.disabled = true;
+    btn.textContent = "Encrypting…";
+    const ttlSel = $("secret-ttl");
+    const ttlLabel = ttlSel.options[ttlSel.selectedIndex].text;
     try {
       const keyBytes = crypto.getRandomValues(new Uint8Array(32));
       const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -777,13 +789,18 @@
         action: "create", ct: b64u.enc(packed), ttl: parseInt($("secret-ttl").value, 10),
       });
       $("secret-link").value = location.origin + "/#s=" + d.id + "." + b64u.enc(keyBytes);
+      $("secret-expiry").textContent =
+        "If nobody opens it, it deletes itself after " + ttlLabel + ".";
+      $("btn-secret-share").hidden = !navigator.share;
       $("secret-compose").hidden = true;
       $("secret-done").hidden = false;
       $("secret-text").value = "";
+      updateSecretCount();
     } catch (e) {
       toast(e.message);
     }
     btn.disabled = false;
+    btn.textContent = "Create one-time link";
   }
 
   async function revealSecret(id, keyStr) {
@@ -895,6 +912,12 @@
   });
 
   $("btn-secret-create").onclick = createSecret;
+  $("secret-text").addEventListener("input", updateSecretCount);
+  $("btn-secret-share").onclick = async () => {
+    try {
+      await navigator.share({ url: $("secret-link").value });
+    } catch {} // user closed the share sheet — not an error
+  };
   $("btn-secret-copy").onclick = async () => {
     (await copyText($("secret-link").value)) ? toast("Link copied.") : toast("Couldn't copy — select it manually.");
   };

@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=10">
+<link rel="stylesheet" href="/assets/style.css?v=12">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -235,33 +235,93 @@
 
   <section id="view-secret" hidden>
     <a class="back" href="/" data-back>← Back</a>
-    <h2>Send a secret</h2>
-    <p class="sub">It's encrypted in your browser before it leaves this page.
-    The link works once, then the message is gone.</p>
+    <div class="secret-grid">
+      <div class="secret-main">
+        <h2>Send a secret</h2>
+        <p class="sub">It's encrypted in your browser before it leaves this page.
+        The link works once, then the message is gone.</p>
 
-    <div id="secret-compose">
-      <textarea id="secret-text" placeholder="Write your secret — a password, a note, anything up to 40,000 characters"></textarea>
-      <div class="secret-opts">
-        <label for="secret-ttl">If unopened, delete after</label>
-        <select id="secret-ttl">
-          <option value="3600">1 hour</option>
-          <option value="86400" selected>1 day</option>
-          <option value="604800">7 days</option>
-        </select>
-        <button class="btn" id="btn-secret-create">Create one-time link</button>
-      </div>
-    </div>
+        <div id="secret-compose">
+          <textarea id="secret-text" placeholder="Write your secret — a password, a note, anything up to 40,000 characters"></textarea>
+          <div class="charcount" id="secret-count" aria-hidden="true"></div>
+          <div class="secret-opts">
+            <label for="secret-ttl">If unopened, delete after</label>
+            <select id="secret-ttl">
+              <option value="3600">1 hour</option>
+              <option value="86400" selected>1 day</option>
+              <option value="604800">7 days</option>
+            </select>
+            <button class="btn" id="btn-secret-create">Create one-time link</button>
+          </div>
+        </div>
 
-    <div id="secret-done" hidden>
-      <p><strong>Your one-time link is ready.</strong></p>
-      <div class="linkbox">
-        <input type="text" id="secret-link" readonly>
-        <button class="btn" id="btn-secret-copy">Copy link</button>
+        <div id="secret-done" hidden>
+          <p><strong>Your one-time link is ready.</strong></p>
+          <div class="linkbox">
+            <input type="text" id="secret-link" readonly>
+            <button class="btn" id="btn-secret-copy">Copy link</button>
+            <button class="btn btn--ghost" id="btn-secret-share" hidden>Share…</button>
+          </div>
+          <p class="note">Anyone with this link can read the secret exactly once.
+          The decryption key lives in the link itself and never reaches our server.</p>
+          <p class="note" id="secret-expiry"></p>
+          <p style="margin-top:18px"><button class="btn btn--ghost" id="btn-secret-again">Write another</button></p>
+        </div>
       </div>
-      <p class="note">Anyone with this link can read the secret exactly once.
-      Send it however you like — the decryption key lives in the link itself and
-      never reaches our server.</p>
-      <p style="margin-top:18px"><button class="btn btn--ghost" id="btn-secret-again">Write another</button></p>
+
+      <div class="secret-viz" aria-hidden="true">
+        <svg viewBox="0 0 300 250" focusable="false">
+          <defs>
+            <linearGradient id="svburn" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0" stop-color="rgba(255,169,77,0)"/>
+              <stop offset="1" stop-color="rgba(255,169,77,.85)"/>
+            </linearGradient>
+          </defs>
+
+          <g class="sv-cardg">
+            <rect class="sv-frame" x="60" y="34" width="180" height="120" rx="11"/>
+            <g class="sv-lines">
+              <rect class="sv-line sv-l1" x="80" y="58" width="120" height="6" rx="3"/>
+              <rect class="sv-line sv-l2" x="80" y="76" width="140" height="6" rx="3"/>
+              <rect class="sv-line sv-l3" x="80" y="94" width="96" height="6" rx="3"/>
+              <rect class="sv-line sv-l4" x="80" y="112" width="70" height="6" rx="3"/>
+            </g>
+            <g class="sv-cipher">
+              <rect x="80" y="56" width="8" height="8"/><rect x="94" y="56" width="8" height="8"/>
+              <rect x="122" y="56" width="8" height="8"/><rect x="150" y="56" width="8" height="8"/>
+              <rect x="164" y="56" width="8" height="8"/><rect x="192" y="56" width="8" height="8"/>
+              <rect x="80" y="74" width="8" height="8"/><rect x="108" y="74" width="8" height="8"/>
+              <rect x="136" y="74" width="8" height="8"/><rect x="150" y="74" width="8" height="8"/>
+              <rect x="178" y="74" width="8" height="8"/><rect x="206" y="74" width="8" height="8"/>
+              <rect x="94" y="92" width="8" height="8"/><rect x="122" y="92" width="8" height="8"/>
+              <rect x="136" y="92" width="8" height="8"/><rect x="164" y="92" width="8" height="8"/>
+              <rect x="192" y="92" width="8" height="8"/>
+              <rect x="80" y="110" width="8" height="8"/><rect x="108" y="110" width="8" height="8"/>
+              <rect x="150" y="110" width="8" height="8"/><rect x="178" y="110" width="8" height="8"/>
+              <rect x="206" y="110" width="8" height="8"/>
+            </g>
+            <rect class="sv-burn" x="60" y="34" width="180" height="120" rx="11" fill="url(#svburn)"/>
+          </g>
+
+          <g class="sv-lock">
+            <path class="sv-shackle" d="M209 34 v-8 a9 9 0 0 1 18 0 v8"/>
+            <rect x="204" y="33" width="28" height="21" rx="4"/>
+            <circle cx="218" cy="43" r="3"/>
+          </g>
+
+          <g class="sv-chip">
+            <rect x="82" y="180" width="136" height="32" rx="16"/>
+            <circle cx="100" cy="196" r="4"/>
+            <text x="112" y="200">one-time link</text>
+          </g>
+        </svg>
+        <p class="sv-caption">
+          <span class="sv-cap1">Write it</span>
+          <span class="sv-cap2">Encrypted in your browser</span>
+          <span class="sv-cap3">Share a link that works once</span>
+          <span class="sv-cap4">Read once — then it burns</span>
+        </p>
+      </div>
     </div>
   </section>
 
@@ -326,6 +386,6 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/qr.js?v=1"></script>
-<script src="/assets/app.js?v=11"></script>
+<script src="/assets/app.js?v=12"></script>
 </body>
 </html>

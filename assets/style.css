@@ -664,6 +664,7 @@ textarea#secret-text {
   display: flex;
   gap: 10px;
   margin: 14px 0 10px;
+  flex-wrap: wrap;
 }
 
 .linkbox input {
@@ -838,6 +839,165 @@ textarea#secret-text {
 }
 
 .lb-foot .btn { text-decoration: none; }
+
+/* ---- secret lifecycle vignette: write → encrypt → link → burn ---- */
+
+.secret-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: clamp(24px, 4vw, 56px);
+  align-items: center;
+}
+
+@media (max-width: 840px) {
+  .secret-grid { grid-template-columns: 1fr; }
+  .secret-viz { max-width: 340px; }
+}
+
+.secret-viz svg { width: 100%; height: auto; display: block; }
+
+.sv-frame {
+  fill: var(--card);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.sv-line { fill: var(--dim); }
+.sv-cipher rect { fill: var(--violet); opacity: .85; }
+.sv-cipher { opacity: 0; animation: sv-cipher 12s linear infinite; }
+
+.sv-cardg { animation: sv-cardg 12s ease-in-out infinite; }
+.sv-lines { animation: sv-lines 12s linear infinite; }
+
+.sv-line {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: sv-linegrow 12s ease-out infinite;
+}
+
+.sv-l2 { animation-name: sv-linegrow2; }
+.sv-l3 { animation-name: sv-linegrow3; }
+.sv-l4 { animation-name: sv-linegrow4; }
+
+.sv-burn { opacity: 0; animation: sv-burn 12s linear infinite; }
+
+.sv-lock rect { fill: var(--pulse); }
+.sv-lock circle { fill: var(--paper); }
+.sv-shackle {
+  fill: none;
+  stroke: var(--pulse);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.sv-lock {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sv-lock 12s ease-out infinite;
+}
+
+.sv-chip rect {
+  fill: var(--card);
+  stroke: var(--violet);
+  stroke-width: 1.5;
+}
+
+.sv-chip circle { fill: var(--violet); }
+
+.sv-chip text {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.sv-chip {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sv-chip 12s ease-out infinite;
+}
+
+.sv-caption {
+  position: relative;
+  height: 1.5em;
+  margin-top: 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .82rem;
+  color: var(--dim);
+  text-align: center;
+}
+
+.sv-caption span { position: absolute; inset: 0; opacity: 0; }
+.sv-cap1 { animation: sv-cap1 12s linear infinite; }
+.sv-cap2 { animation: sv-cap2 12s linear infinite; }
+.sv-cap3 { animation: sv-cap3 12s linear infinite; }
+.sv-cap4 { animation: sv-cap4 12s linear infinite; }
+
+@keyframes sv-cardg {
+  0% { opacity: 0; transform: translateY(8px); }
+  5%, 84% { opacity: 1; transform: none; }
+  93%, 100% { opacity: 0; transform: translateY(-10px); }
+}
+
+@keyframes sv-linegrow  { 0% { transform: scaleX(0); } 4%  { transform: scaleX(0); } 8%  { transform: scaleX(1); } 100% { transform: scaleX(1); } }
+@keyframes sv-linegrow2 { 0% { transform: scaleX(0); } 6%  { transform: scaleX(0); } 10% { transform: scaleX(1); } 100% { transform: scaleX(1); } }
+@keyframes sv-linegrow3 { 0% { transform: scaleX(0); } 8%  { transform: scaleX(0); } 12% { transform: scaleX(1); } 100% { transform: scaleX(1); } }
+@keyframes sv-linegrow4 { 0% { transform: scaleX(0); } 10% { transform: scaleX(0); } 14% { transform: scaleX(1); } 100% { transform: scaleX(1); } }
+
+@keyframes sv-lines {
+  0%, 20% { opacity: 1; }
+  26%, 100% { opacity: 0; }
+}
+
+@keyframes sv-cipher {
+  0%, 21% { opacity: 0; }
+  27%, 100% { opacity: 1; }
+}
+
+@keyframes sv-lock {
+  0%, 19% { opacity: 0; transform: scale(.4); }
+  24%, 86% { opacity: 1; transform: scale(1); }
+  93%, 100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes sv-chip {
+  0%, 33% { opacity: 0; transform: scale(.6); }
+  38%, 58% { opacity: 1; transform: scale(1); }
+  61% { transform: scale(1.07); }
+  64%, 68% { opacity: 1; transform: scale(1); }
+  78%, 100% { opacity: .15; transform: scale(1); }
+}
+
+@keyframes sv-burn {
+  0%, 64% { opacity: 0; }
+  76%, 84% { opacity: .9; }
+  93%, 100% { opacity: 0; }
+}
+
+@keyframes sv-cap1 { 0%, 16% { opacity: 1; } 20%, 100% { opacity: 0; } }
+@keyframes sv-cap2 { 0%, 18% { opacity: 0; } 22%, 30% { opacity: 1; } 34%, 100% { opacity: 0; } }
+@keyframes sv-cap3 { 0%, 32% { opacity: 0; } 36%, 56% { opacity: 1; } 60%, 100% { opacity: 0; } }
+@keyframes sv-cap4 { 0%, 58% { opacity: 0; } 62%, 88% { opacity: 1; } 94%, 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-cardg, .sv-lines, .sv-line, .sv-cipher, .sv-lock, .sv-chip,
+  .sv-burn, .sv-caption span { animation: none; }
+  .sv-cardg, .sv-cipher, .sv-lock, .sv-chip { opacity: 1; }
+  .sv-lines { opacity: 0; }
+  .sv-caption { height: auto; }
+  .sv-caption span { display: none; position: static; }
+  .sv-caption .sv-cap4 { display: block; opacity: 1; }
+}
+
+.charcount {
+  text-align: right;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .72rem;
+  color: var(--dim);
+  margin: -8px 0 10px;
+}
+
+.charcount.warn { color: var(--danger); }
 
 /* ---- footer & toast ---- */
 
