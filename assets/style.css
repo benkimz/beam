@@ -280,14 +280,30 @@ h2 {
 .hw-scan rect { fill: var(--dim); }
 .hw-scan { animation: hw-scan 10s linear infinite; }
 
+.hw-track {
+  stroke: var(--line);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 7;
+  opacity: .8;
+}
+
 .hw-beam {
   stroke-width: 2.5;
   stroke-dasharray: 230;
   animation: hw-beam 10s linear infinite;
 }
 
-.hw-dot--file { fill: #7A5AFF; animation: hw-dotfile 10s linear infinite; }
-.hw-dot--back { fill: #FFA94D; animation: hw-dotback 10s linear infinite; }
+.hw-dot--file {
+  fill: #7A5AFF;
+  filter: drop-shadow(0 0 5px rgba(122, 90, 255, .95));
+  animation: hw-dotfile 10s linear infinite;
+}
+
+.hw-dot--back {
+  fill: #FFA94D;
+  filter: drop-shadow(0 0 5px rgba(255, 169, 77, .95));
+  animation: hw-dotback 10s linear infinite;
+}
 
 .hw-file rect:first-child, .hw-chip rect:first-child {
   fill: var(--card);
@@ -382,6 +398,13 @@ h2 {
   0%, 52% { opacity: 0; }
   56%, 94% { opacity: 1; }
   98%, 100% { opacity: 0; }
+}
+
+/* on dark surfaces the devices need their own light to read instantly */
+@media (prefers-color-scheme: dark) {
+  .hw-frame { fill: #151D2E; stroke: #3B475F; }
+  .hw-file rect:first-child, .hw-chip rect:first-child { fill: #1C2540; }
+  .hw-track { opacity: 1; }
 }
 
 /* static fallback: everything visible, plain caption */
