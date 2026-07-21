@@ -2,7 +2,9 @@
 
 **Send anything to any device.** No app, no account, no size limit.
 
-Live at **[beamtm.com](https://beamtm.com)**.
+Live at **[beamtm.com](https://beamtm.com)** ·
+[Documentation](https://beamtm.com/docs/) ·
+[Security & protocol](https://beamtm.com/security/)
 
 ![beam — send anything to any device](og.png)
 
