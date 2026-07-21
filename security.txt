@@ -1,0 +1,6 @@
+Contact: mailto:benkim3619@gmail.com
+Contact: https://github.com/benkimz/beam/security/advisories/new
+Expires: 2027-07-21T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://beamtm.com/.well-known/security.txt
+Policy: https://beamtm.com/security/#disclosure

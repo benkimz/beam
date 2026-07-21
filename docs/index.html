@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation — beam™</title>
+<meta name="description" content="How to use beam: pair devices with a QR code, send files and text directly between them, use group beams, and send one-time self-destructing secrets.">
+<link rel="canonical" href="https://beamtm.com/docs/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%232BD9FF'/%3E%3Cstop offset='.5' stop-color='%237A5AFF'/%3E%3Cstop offset='1' stop-color='%23FFA94D'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%23101724'/%3E%3Crect x='2' y='29' width='86' height='6' rx='3' fill='url(%23g)' transform='rotate(-24 32 32)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css?v=15">
+</head>
+<body>
+
+<div class="beamline" aria-hidden="true">
+  <div class="beamline__glow"></div>
+  <div class="beamline__core"></div>
+</div>
+
+<header>
+  <a class="wordmark" href="/">beam<sup>™</sup></a>
+  <nav class="header-note"><a href="/docs/">docs</a> · <a href="/security/">security</a> · <a href="https://github.com/benkimz/beam">github</a></nav>
+</header>
+
+<main>
+<article class="page">
+  <h1>Documentation</h1>
+  <p class="lede">beam moves files, text, and secrets between devices with nothing to
+  install and no account to create. This page explains everything it does. For the
+  cryptographic and protocol details, see <a href="/security/">Security&nbsp;&amp;&nbsp;protocol</a>.</p>
+
+  <h2 id="what">What beam is</h2>
+  <p>Two tools sharing one idea — that moving something between devices should take
+  seconds, not setup:</p>
+  <ul>
+    <li><strong>Beams</strong> pair 2–8 devices through a QR code or a 6-character code,
+    then move files and text <em>directly between them</em> over an encrypted
+    peer-to-peer connection. The server introduces the devices and steps aside.</li>
+    <li><strong>Secrets</strong> are one-time messages: encrypted in your browser, shared
+    as a link, destroyed the moment they're read.</li>
+  </ul>
+
+  <h2 id="beaming">Beaming files &amp; text</h2>
+  <ol>
+    <li><strong>Start:</strong> press <em>Start a beam</em> on any device. It shows a QR
+    code and a 6-character code (like <code>KX4M2P</code>).</li>
+    <li><strong>Join from your other device:</strong> scan the QR with the phone's camera
+    or the site's <em>Scan QR</em> button — or open beamtm.com and type the code. Up to
+    8 devices can join the same beam, and the host keeps the QR visible so
+    others can join mid-session.</li>
+    <li><strong>Send:</strong> drop files anywhere in the window (or tap to choose), or
+    type text into the text bar. Transfers flow in both directions. The host's drops
+    go to every connected device.</li>
+    <li><strong>Receive:</strong> incoming files list with a progress bar. Media,
+    PDFs and text files get a <em>Preview</em> button so you can look before you
+    <em>Save</em> — nothing touches your storage until you choose.</li>
+  </ol>
+  <p>Beams have <strong>no size limit and no compression</strong> — bytes arrive exactly
+  as they left, at the speed of your network. Sessions last 15 minutes from creation;
+  ending the beam on the host device closes it for everyone immediately.</p>
+
+  <h3 id="relay">When devices can't connect directly</h3>
+  <p>Some networks (strict offices, some mobile carriers) block direct connections.
+  After ~15 seconds beam falls back to a <strong>relay mode</strong>, clearly labeled in
+  the UI: files up to 7&nbsp;MB pass through the server, are deleted on pickup, and
+  never persist past the session. The privacy trade-off of this mode is documented
+  honestly in <a href="/security/#relay">Security&nbsp;&amp;&nbsp;protocol</a>.</p>
+
+  <h2 id="secrets">Sending a secret</h2>
+  <ol>
+    <li>Press <em>Send a secret</em>, write up to 40,000 characters, choose how long it
+    may wait unopened (1 hour, 1 day, or 7 days), and press
+    <em>Create one-time link</em>.</li>
+    <li>Your message is encrypted <em>in your browser</em> before anything is sent. The
+    decryption key is embedded in the link itself — in a part of the URL that
+    browsers never transmit — so the server only ever stores ciphertext it cannot
+    read.</li>
+    <li>Send the link over any channel. The first person to open it and press
+    <em>Reveal</em> reads the message; at that instant it is deleted from the server
+    permanently. A second visit finds nothing.</li>
+  </ol>
+  <p>Good uses: passwords, keys, door codes, anything that shouldn't sit in a chat
+  history forever. One caution: the link <em>is</em> the secret — anyone holding it can
+  do the one read. Send it to the right person.</p>
+
+  <h2 id="limits">Limits at a glance</h2>
+  <table>
+    <tr><th>Thing</th><th>Limit</th></tr>
+    <tr><td>Devices per beam</td><td>8 (plus the host)</td></tr>
+    <tr><td>Beam session lifetime</td><td>15 minutes</td></tr>
+    <tr><td>Direct transfer size</td><td>unlimited</td></tr>
+    <tr><td>Relay-fallback file size</td><td>7 MB</td></tr>
+    <tr><td>Secret length</td><td>40,000 characters</td></tr>
+    <tr><td>Secret unopened lifetime</td><td>1 hour – 7 days</td></tr>
+    <tr><td>Price</td><td>free</td></tr>
+  </table>
+
+  <h2 id="requirements">What you need</h2>
+  <p>A modern browser — that's the whole list. Chrome, Safari, Firefox, or Edge on
+  any phone, tablet, or computer from roughly the last five years. Both devices need
+  to be online; they do <em>not</em> need to be on the same network.</p>
+
+  <h2 id="developers">For developers &amp; AI agents</h2>
+  <p>The API is plain JSON over HTTPS with no authentication — knowing a code or id
+  is the capability. See the <a href="/api/openapi.json">OpenAPI description</a> and the
+  agent-oriented guide at <a href="/llms.txt">/llms.txt</a>, which includes a recipe for
+  programmatically creating one-time secrets (useful when an agent needs to hand a
+  human a credential without leaving it in a chat log). The full source is at
+  <a href="https://github.com/benkimz/beam">github.com/benkimz/beam</a> — MIT licensed,
+  and small enough to read in one sitting; self-hosting instructions are in the
+  README.</p>
+</article>
+</main>
+
+<footer>
+  <p class="fine">Beamed files travel device-to-device over an encrypted connection and are
+  never stored here. Secrets are encrypted in your browser; this server keeps only
+  ciphertext it cannot read, and deletes it the moment it's opened. Beams expire
+  after 15 minutes. · © 2026 beam™</p>
+  <p class="fine footer-nav"><a href="/">beam</a> · <a href="/docs/">documentation</a> · <a href="/security/">security &amp; protocol</a> · <a href="https://github.com/benkimz/beam">github</a></p>
+</footer>
+
+</body>
+</html>

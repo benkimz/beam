@@ -149,6 +149,13 @@ header {
   color: var(--dim);
 }
 
+.header-note a { color: inherit; text-decoration: none; }
+.header-note a:hover { color: var(--ink); }
+
+.footer-nav { margin-top: 10px; }
+.footer-nav a { color: var(--pulse); text-decoration: none; }
+.footer-nav a:hover { text-decoration: underline; }
+
 main {
   flex: 1;
   width: 100%;
@@ -1053,6 +1060,68 @@ textarea#secret-text {
 }
 
 .charcount.warn { color: var(--danger); }
+
+/* ---- article pages (docs, security) ---- */
+
+.page { max-width: 46em; padding-bottom: 20px; }
+
+.page h1 {
+  font-family: "Unbounded", sans-serif;
+  font-weight: 500;
+  font-size: clamp(1.5rem, 3.5vw, 2.1rem);
+  margin-bottom: .5em;
+}
+
+.page .lede { color: var(--dim); font-size: 1.05rem; margin-bottom: 2.2em; }
+
+.page h2 {
+  font-family: "Unbounded", sans-serif;
+  font-weight: 500;
+  font-size: 1.15rem;
+  margin: 2em 0 .6em;
+}
+
+.page h3 { font-size: 1rem; margin: 1.5em 0 .4em; }
+
+.page p { margin: .8em 0; }
+.page ul, .page ol { margin: .8em 0 .8em 1.5em; }
+.page li { margin: .5em 0; }
+.page li::marker { color: var(--pulse); }
+
+.page a { color: var(--pulse); text-decoration: none; }
+.page a:hover { text-decoration: underline; }
+
+.page code {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .85em;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: .08em .35em;
+}
+
+.page table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: .92rem;
+}
+
+.page th {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.page th, .page td {
+  text-align: left;
+  padding: .55em .8em .55em 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
 
 /* ---- footer & toast ---- */
 

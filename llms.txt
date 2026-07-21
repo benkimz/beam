@@ -39,4 +39,8 @@ service; poll no faster than ~1/second and only within an active session.
 ## Pages
 
 - https://beamtm.com/ — the app (beams and secrets, single page)
+- https://beamtm.com/docs/ — documentation: how beams and secrets work, limits
+- https://beamtm.com/security/ — full protocol and security disclosure: WebRTC
+  config, exact cryptography, data retention, vulnerability disclosure policy
 - https://beamtm.com/api/openapi.json — OpenAPI 3.0 description of the API
+- https://beamtm.com/.well-known/security.txt — security contact (RFC 9116)

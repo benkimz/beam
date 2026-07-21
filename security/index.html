@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security &amp; protocol — beam™</title>
+<meta name="description" content="The exact protocol behind beam: WebRTC configuration, what the server can and cannot see, how secrets are encrypted, data retention, and the vulnerability disclosure policy.">
+<link rel="canonical" href="https://beamtm.com/security/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%232BD9FF'/%3E%3Cstop offset='.5' stop-color='%237A5AFF'/%3E%3Cstop offset='1' stop-color='%23FFA94D'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%23101724'/%3E%3Crect x='2' y='29' width='86' height='6' rx='3' fill='url(%23g)' transform='rotate(-24 32 32)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css?v=15">
+</head>
+<body>
+
+<div class="beamline" aria-hidden="true">
+  <div class="beamline__glow"></div>
+  <div class="beamline__core"></div>
+</div>
+
+<header>
+  <a class="wordmark" href="/">beam<sup>™</sup></a>
+  <nav class="header-note"><a href="/docs/">docs</a> · <a href="/security/">security</a> · <a href="https://github.com/benkimz/beam">github</a></nav>
+</header>
+
+<main>
+<article class="page">
+  <h1>Security &amp; protocol</h1>
+  <p class="lede">Everything beam does, stated precisely — including the parts that
+  favor honesty over marketing. The deployed code is open source at
+  <a href="https://github.com/benkimz/beam">github.com/benkimz/beam</a>; every claim
+  on this page can be checked against it.</p>
+
+  <h2 id="threat-model">Threat model, in one paragraph</h2>
+  <p>beam is designed so that a fully compromised beam server — or an honest one
+  under legal compulsion — <strong>cannot read your secrets and cannot read files sent
+  over a direct beam</strong>, because it never possesses the plaintext or the keys.
+  What the server can see is metadata: that a session existed, connection-setup
+  messages (which include participant IP addresses), and, in one specific fallback
+  case described below, temporary file contents. beam does <em>not</em> defend against
+  a compromised device, a malicious browser extension, or someone who obtains your
+  one-time link before the recipient opens it. Possession of a link or code
+  <em>is</em> the capability — there are no accounts to check against.</p>
+
+  <h2 id="pairing">Pairing &amp; signaling protocol</h2>
+  <ul>
+    <li>A beam session is identified by a 6-character code drawn from a 32-character
+    alphabet (<code>A–Z</code> minus <code>I,O</code>, plus <code>2–9</code>) — about
+    1.07&nbsp;billion combinations. Joining with an unknown code is delayed 400&nbsp;ms
+    server-side to make scanning impractical.</li>
+    <li>Sessions live <strong>15 minutes</strong> from creation, accept at most
+    <strong>8 guest devices</strong>, and can be ended early by the host. Ended and
+    expired sessions refuse joins and messages.</li>
+    <li>Devices exchange messages through the server by short polling
+    (<code>api/beam.php</code>). Each participant has a peer id (<code>h</code> for the
+    host, <code>gXXXX</code> for guests); every message is addressed to exactly one peer.
+    These messages carry only WebRTC handshake material (SDP offers/answers, ICE
+    candidates), plus small control notices (text-via-relay, file-waiting, goodbye).</li>
+    <li>Known limitation, stated plainly: peers within a session are not
+    authenticated to each other. Anyone who has the code during the 15-minute window
+    is a legitimate participant by definition, and a participant could forge the
+    <code>from</code> field of a signaling message. The code is the security boundary;
+    treat it like a key.</li>
+  </ul>
+
+  <h2 id="webrtc">WebRTC configuration — exactly</h2>
+  <ul>
+    <li><code>RTCPeerConnection</code> with two STUN servers:
+    <code>stun:stun.l.google.com:19302</code> and <code>stun:stun1.l.google.com:19302</code>.
+    STUN only helps devices discover their own public address; no traffic flows through it.</li>
+    <li><strong>There is no TURN server.</strong> If NAT traversal fails, beam does not
+    silently route your traffic through a stranger's relay — it falls back to the
+    size-limited relay described below, and tells you so in the UI.</li>
+    <li>Transfers use a single ordered <code>RTCDataChannel</code>. WebRTC data channels
+    are always encrypted in transit (DTLS 1.2+, keys negotiated directly between the
+    two browsers). Files are sent in 16&nbsp;KB chunks with backpressure
+    (1&nbsp;MB high-water mark).</li>
+    <li>What the server necessarily sees during setup: the SDP and ICE candidates it
+    relays, <strong>which contain the participants' IP addresses</strong>. That is inherent
+    to WebRTC signaling. These messages are deleted with the session — at most 15 minutes
+    after creation.</li>
+  </ul>
+
+  <h2 id="relay">The relay fallback — what the server sees</h2>
+  <p>When a direct connection cannot be established within ~15 seconds (symmetric
+  NATs, strict corporate networks), beam offers a store-and-forward fallback for
+  files up to 7&nbsp;MB. Full honesty about this path:</p>
+  <ul>
+    <li>The file is uploaded to the server and sits <strong>unencrypted at rest</strong>
+    in a directory outside the web root, along with its (sanitized) filename and size.</li>
+    <li>It is deleted the moment the recipient downloads it, when the session ends,
+    or when the session expires — whichever comes first. Never longer than 15 minutes.</li>
+    <li>This is the one case where the server could technically read file contents.
+    The UI labels relay mode explicitly whenever it is active, so you are never on
+    this path without knowing. If that trade-off is unacceptable for a given file,
+    don't send it over relay — direct beams and secrets never have this property.
+    End-to-end encryption for the relay path is on the roadmap.</li>
+  </ul>
+
+  <h2 id="secrets">Secrets — the exact cryptography</h2>
+  <ul>
+    <li><strong>Algorithm:</strong> AES-256-GCM via the browser's WebCrypto API
+    (<code>crypto.subtle</code>).</li>
+    <li><strong>Key:</strong> 32 random bytes from <code>crypto.getRandomValues</code>
+    (the browser's CSPRNG). There is <em>no</em> key derivation and no password — the key
+    is pure random material, generated in your browser, used once.</li>
+    <li><strong>Nonce:</strong> 12 random bytes, generated per secret. The stored payload
+    is <code>base64url(IV || ciphertext || GCM&nbsp;tag)</code>.</li>
+    <li><strong>Where the key lives:</strong> only in the URL fragment —
+    <code>beamtm.com/#s=&lt;id&gt;.&lt;key&gt;</code>. Browsers never transmit the fragment in
+    HTTP requests, so the key never reaches the server, its logs, or any proxy. The
+    server stores only the ciphertext, a random 96-bit id, and an expiry time.</li>
+    <li><strong>Burn semantics:</strong> reading is an atomic read-and-delete inside an
+    immediate SQLite transaction — two simultaneous readers cannot both win. Unread
+    secrets are deleted at their chosen TTL (5 minutes to 7 days; default 1 day).
+    Note that fetching burns the ciphertext regardless of whether decryption then
+    succeeds: possession of a valid link is the read capability.</li>
+    <li>Ciphertext is capped at 64&nbsp;KB (~40,000 characters of text).</li>
+  </ul>
+
+  <h2 id="data">What the server stores, and for how long</h2>
+  <table>
+    <tr><th>Data</th><th>Contents</th><th>Retention</th></tr>
+    <tr><td>Sessions</td><td>code, timestamps, guest count, ended flag</td><td>≤ 15 minutes</td></tr>
+    <tr><td>Signaling messages</td><td>SDP / ICE (includes IPs), control notices</td><td>≤ 15 minutes</td></tr>
+    <tr><td>Relay files</td><td>file bytes (cleartext), filename, size</td><td>until pickup; ≤ 15 minutes</td></tr>
+    <tr><td>Secrets</td><td>ciphertext, random id, expiry</td><td>until read; ≤ chosen TTL (max 7 days)</td></tr>
+    <tr><td>Usage counters</td><td>one integer per metric per day (<code>page_view</code>, <code>beam_created</code>, <code>beam_joined</code>, <code>secret_created</code>, <code>secret_read</code>, <code>relay_upload</code>)</td><td>indefinite (aggregate only)</td></tr>
+  </table>
+  <p>Deletion is enforced by opportunistic garbage collection on incoming requests
+  rather than a scheduled job, so precise deletion time can lag TTL by a short,
+  traffic-dependent interval.</p>
+  <p><strong>Application logging:</strong> beam's own code writes no logs — no IPs, no
+  user agents, no per-user records of any kind. The usage counters above are the
+  entirety of application-level analytics; there are no cookies and no third-party
+  scripts (fonts are the single external resource, loaded from Google Fonts).</p>
+  <p><strong>Web-server logging:</strong> beam runs on ordinary shared hosting
+  (LiteSpeed). Like virtually every web host, the platform keeps standard HTTP access
+  logs (IP, URL path, timestamp, user agent) under the hosting provider's own rotation
+  policy. URL paths do not contain codes, ids, or keys — session traffic is JSON POST
+  bodies, which access logs do not capture, and secret keys live in fragments, which
+  browsers never send at all.</p>
+
+  <h2 id="transparency">Code transparency</h2>
+  <p>The complete source — this page included — is at
+  <a href="https://github.com/benkimz/beam">github.com/benkimz/beam</a> under the MIT
+  license. There is no build step: the files in the repository are byte-for-byte the
+  files this site serves, so you can diff production against the repo directly. A
+  machine-readable API description lives at <a href="/api/openapi.json">/api/openapi.json</a>
+  and an agent-oriented guide at <a href="/llms.txt">/llms.txt</a>.</p>
+
+  <h2 id="disclosure">Vulnerability disclosure policy</h2>
+  <p>Security reports are genuinely welcome — this is a small independent project and
+  fresh eyes are its best audit.</p>
+  <ul>
+    <li><strong>Contact:</strong> <a href="mailto:benkim3619@gmail.com">benkim3619@gmail.com</a>
+    (also listed in <a href="/.well-known/security.txt">/.well-known/security.txt</a>).
+    You can also open a GitHub security advisory on the repository.</li>
+    <li><strong>What we promise:</strong> acknowledgement within 72 hours, a good-faith fix
+    for confirmed issues as fast as a one-person project allows (target: well inside
+    90 days), and public credit in the repository if you want it. There is no paid
+    bounty — saying so up front beats implying otherwise.</li>
+    <li><strong>Safe harbor:</strong> good-faith research against beamtm.com is authorized.
+    We will not pursue legal action for testing that respects two limits: don't
+    access, alter, or destroy data belonging to other users (create your own sessions
+    and secrets to test against), and no volumetric denial-of-service — the service
+    runs on shared hosting and its neighbors don't deserve your load test.</li>
+    <li><strong>In scope:</strong> anything that breaks a claim on this page — reading
+    secrets server-side, bypassing burn-once semantics, cross-session access,
+    signaling injection with real impact, XSS on any page.</li>
+  </ul>
+
+  <p class="note" style="margin-top:2.5em">Last updated 21 July 2026 · matches the
+  deployed code as of that date. If this page and the code ever disagree, the code
+  is the truth and the discrepancy is a bug — please report it.</p>
+</article>
+</main>
+
+<footer>
+  <p class="fine">Beamed files travel device-to-device over an encrypted connection and are
+  never stored here. Secrets are encrypted in your browser; this server keeps only
+  ciphertext it cannot read, and deletes it the moment it's opened. Beams expire
+  after 15 minutes. · © 2026 beam™</p>
+  <p class="fine footer-nav"><a href="/">beam</a> · <a href="/docs/">documentation</a> · <a href="/security/">security &amp; protocol</a> · <a href="https://github.com/benkimz/beam">github</a></p>
+</footer>
+
+</body>
+</html>
