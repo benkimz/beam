@@ -1412,5 +1412,27 @@
     route();
   });
 
+  // ---------- update beacon: long-open tabs learn about new versions ----------
+
+  const APP_VERSION = "20";
+  let updateNoticeShown = false;
+
+  async function checkForUpdate() {
+    if (updateNoticeShown) return;
+    try {
+      const res = await fetch("/assets/version.txt?t=" + Date.now(), { cache: "no-store" });
+      const v = (await res.text()).trim();
+      if (v && v !== APP_VERSION) {
+        updateNoticeShown = true;
+        toast("beam has been updated — refresh this page when convenient.");
+      }
+    } catch {}
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkForUpdate();
+  });
+  setInterval(checkForUpdate, 1800000);
+
   route();
 })();
