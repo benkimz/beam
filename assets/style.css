@@ -650,15 +650,23 @@ body.dragging::after {
 
 /* ---- private chat ---- */
 
+/* the shared .invite class carries grid-area: invite — every grid hosting it
+   must name that area explicitly or the item lands in implicit tracks */
 .chat-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-areas: "main invite";
   gap: 20px 24px;
   align-items: start;
   margin-top: 6px;
 }
 
-.chat-grid:has(.invite[hidden]) { grid-template-columns: minmax(0, 1fr); }
+.chat-main { grid-area: main; }
+
+.chat-grid:has(.invite[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "main";
+}
 
 .members {
   display: flex;
@@ -749,13 +757,19 @@ body.dragging::after {
 .chat-nickrow input { width: 16em; max-width: 100%; }
 
 @media (max-width: 720px) {
-  .chat-grid, .chat-grid:has(.invite[hidden]) { grid-template-columns: minmax(0, 1fr); }
+  .chat-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "invite" "main";
+  }
+  .chat-grid:has(.invite[hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "main";
+  }
   .chat-grid .invite:not([hidden]) {
     display: flex;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
-    order: -1;
   }
   .chat-grid .invite .qr-card svg { max-width: 110px; }
   .msg { max-width: 92%; }
