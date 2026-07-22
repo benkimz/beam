@@ -120,9 +120,12 @@
     instead of a fixed 15 minutes.</li>
     <li><strong>Chat messages never transit the server — by construction.</strong> They
     travel only over the DTLS-encrypted WebRTC data channels, star-routed through the
-    room's host device. Unlike file beams, chat has <em>no relay fallback</em>: if a
-    direct connection cannot be formed, the room refuses to work rather than
-    downgrade. The server's involvement is the connection handshake, nothing more.</li>
+    room's host device. This includes chat media (images and files, ≤&nbsp;10&nbsp;MB),
+    which is chunked over the same channels — a guest's photo is reassembled on the
+    host device and re-sent to the other members, never uploaded anywhere. Unlike
+    file beams, chat has <em>no relay fallback</em>: if a direct connection cannot be
+    formed, the room refuses to work rather than downgrade. The server's involvement
+    is the connection handshake, nothing more.</li>
     <li>Nicknames and the member roster are exchanged over the same data channels —
     the server never sees names. The identity colors are derived locally from peer
     ids.</li>

@@ -7,6 +7,7 @@
   const CHUNK = 16384;
   const HIGH_WATER = 1048576;
   const RELAY_MAX = 7 * 1048576;
+  const CHAT_MEDIA_MAX = 10 * 1048576;
 
   const state = {
     code: null,
@@ -295,6 +296,7 @@
         else if (m.t === "chat") onChatMsg(remoteId, m);
         else if (m.t === "hello") onHello(remoteId, m);
         else if (m.t === "roster") onRoster(m);
+        else if (m.t === "typing") onTyping(remoteId, m);
       } else {
         appendIncoming(remoteId, ev.data);
       }
@@ -493,6 +495,8 @@
     $("link-status").classList.add("live");
     state.roster = [];
     state.mode = "beam";
+    typingSeen.clear();
+    $("chat-typing").textContent = "";
     $("chat-log").innerHTML = "";
     $("chat-members").innerHTML = "";
     $("qr-chat").innerHTML = "";
@@ -615,24 +619,146 @@
     }
   }
 
-  function addChatMsg(from, body, nick, mine) {
+  function rosterNick(id) {
+    const e = state.roster.find((r) => r[0] === id);
+    return e ? e[1] : "";
+  }
+
+  function chatMsgShell(from, mine, nick) {
     const log = $("chat-log");
     const el = document.createElement("div");
     el.className = "msg" + (mine ? " mine" : "");
-    if (!mine) {
-      const who = document.createElement("div");
-      who.className = "who";
-      who.textContent = nameFor(from, nick);
+    const who = document.createElement("div");
+    who.className = "who";
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (mine) {
+      who.innerHTML = '<span class="ts"></span>';
+      who.querySelector(".ts").textContent = time;
+    } else {
+      who.textContent = nameFor(from, nick || rosterNick(from));
       who.style.color = colorFor(from);
-      el.append(who);
+      const ts = document.createElement("span");
+      ts.className = "ts";
+      ts.textContent = " · " + time;
+      who.append(ts);
     }
     const bubble = document.createElement("div");
     bubble.className = "bubble";
-    bubble.textContent = body;
-    el.append(bubble);
+    el.append(who, bubble);
     log.append(el);
     while (log.children.length > 500) log.firstChild.remove();
     log.scrollTop = log.scrollHeight;
+    return el;
+  }
+
+  function addChatMsg(from, body, nick, mine) {
+    const el = chatMsgShell(from, mine, nick);
+    el.querySelector(".bubble").textContent = body;
+    $("chat-log").scrollTop = $("chat-log").scrollHeight;
+  }
+
+  function fillMediaBubble(el, blob, name) {
+    const url = URL.createObjectURL(blob);
+    state.objectUrls.push(url);
+    const bubble = el.querySelector(".bubble");
+    bubble.innerHTML = "";
+    if ((blob.type || "").startsWith("image/")) {
+      bubble.classList.add("media");
+      const img = new Image();
+      img.src = url;
+      img.alt = name;
+      img.className = "chat-img";
+      img.onclick = () => openPreview(blob, name, url);
+      bubble.append(img);
+    } else {
+      bubble.append(name + " (" + fmtSize(blob.size) + ") — ");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.textContent = "Save";
+      bubble.append(a);
+      if (previewKind(blob.type, name)) {
+        const pv = document.createElement("a");
+        pv.href = "#";
+        pv.textContent = " Preview";
+        pv.onclick = (e) => { e.preventDefault(); openPreview(blob, name, url); };
+        bubble.append(" ", pv);
+      }
+    }
+  }
+
+  function sendBlobToPeer(p, meta, blob) {
+    p.sendChain = (p.sendChain || Promise.resolve()).then(async () => {
+      const dc = p.dc;
+      if (!dc || dc.readyState !== "open") return;
+      dc.send(JSON.stringify(meta));
+      for (let off = 0; off < blob.size; off += CHUNK) {
+        const buf = await blob.slice(off, off + CHUNK).arrayBuffer();
+        if (dc.readyState !== "open") return;
+        if (dc.bufferedAmount > HIGH_WATER) await waitForDrain(dc);
+        dc.send(buf);
+      }
+      if (dc.readyState === "open") dc.send(JSON.stringify({ t: "end", id: meta.id }));
+    }).catch(() => {});
+  }
+
+  function sendChatFiles(files) {
+    if (!anyOpen()) {
+      toast("No one else is connected yet.");
+      return;
+    }
+    for (const f of files) {
+      if (f.size > CHAT_MEDIA_MAX) {
+        toast("Chat media is limited to 10 MB — use a beam for big files.");
+        continue;
+      }
+      const meta = { t: "file", id: ++state.counter, name: f.name || "pasted-image.png",
+                     size: f.size, type: f.type, from: state.peer, chat: true };
+      const el = chatMsgShell(state.peer, true);
+      fillMediaBubble(el, f, meta.name);
+      for (const [, p] of openPeers()) sendBlobToPeer(p, meta, f);
+    }
+  }
+
+  // typing indicator — sent at most every 1.5s, shown for 3s
+  let lastTypingSent = 0;
+
+  function sendTyping() {
+    const now = Date.now();
+    if (now - lastTypingSent < 1500 || !anyOpen()) return;
+    lastTypingSent = now;
+    const payload = JSON.stringify({ t: "typing", from: state.peer });
+    for (const [, p] of openPeers()) {
+      try { p.dc.send(payload); } catch {}
+    }
+  }
+
+  const typingSeen = new Map(); // peerId -> last seen ms
+
+  function onTyping(remoteId, m) {
+    const from = m.from || remoteId;
+    if (from === state.peer) return;
+    typingSeen.set(from, Date.now());
+    renderTyping();
+    setTimeout(renderTyping, 3200);
+    if (isHost()) {
+      const fwd = JSON.stringify({ t: "typing", from });
+      for (const [id, p] of openPeers()) {
+        if (id !== remoteId) { try { p.dc.send(fwd); } catch {} }
+      }
+    }
+  }
+
+  function renderTyping() {
+    const now = Date.now();
+    const names = [];
+    for (const [id, ts] of typingSeen) {
+      if (now - ts < 3000) names.push(nameFor(id, rosterNick(id)));
+      else typingSeen.delete(id);
+    }
+    $("chat-typing").textContent = names.length
+      ? names.join(" & ") + (names.length === 1 ? " is" : " are") + " typing…"
+      : "";
   }
 
   function addChatSys(text) {
@@ -778,11 +904,18 @@
   // ---------- receiving (P2P) ----------
 
   function beginIncoming(from, m) {
-    state.incomingBy.set(from, {
+    const isChat = state.mode === "chat" || m.chat === true;
+    const inc = {
       id: m.id, name: m.name || "beamed-file", size: m.size || 0, type: m.type || "",
-      chunks: [], received: 0,
-      el: txRow("in", m.name || "beamed-file", fmtSize(m.size || 0)),
-    });
+      chunks: [], received: 0, chat: isChat, from: m.from || from,
+    };
+    if (isChat) {
+      inc.el = chatMsgShell(inc.from, false);
+      inc.el.querySelector(".bubble").textContent = "↓ " + inc.name + " — 0%";
+    } else {
+      inc.el = txRow("in", inc.name, fmtSize(inc.size));
+    }
+    state.incomingBy.set(from, inc);
   }
 
   function appendIncoming(from, buf) {
@@ -790,6 +923,11 @@
     if (!inc) return;
     inc.chunks.push(buf);
     inc.received += buf.byteLength;
+    if (inc.chat) {
+      inc.el.querySelector(".bubble").textContent = "↓ " + inc.name + " — " +
+        (inc.size ? Math.floor((inc.received / inc.size) * 100) : 0) + "%";
+      return;
+    }
     inc.el.querySelector(".bar i").style.width =
       (inc.size ? (inc.received / inc.size) * 100 : 100) + "%";
   }
@@ -799,6 +937,19 @@
     if (!inc) return;
     state.incomingBy.delete(from);
     const blob = new Blob(inc.chunks, { type: inc.type || "application/octet-stream" });
+    if (inc.chat) {
+      fillMediaBubble(inc.el, blob, inc.name);
+      $("chat-log").scrollTop = $("chat-log").scrollHeight;
+      if (isHost()) {
+        // star topology: relay the finished file to every other member
+        const meta = { t: "file", id: ++state.counter, name: inc.name, size: blob.size,
+                       type: blob.type, from: inc.from, chat: true };
+        for (const [id, p] of openPeers()) {
+          if (id !== from) sendBlobToPeer(p, meta, blob);
+        }
+      }
+      return;
+    }
     const url = URL.createObjectURL(blob);
     state.objectUrls.push(url);
     if (previewKind(blob.type, inc.name)) {
@@ -1095,6 +1246,20 @@
       if (p && p.open) {
         try { p.dc.send(JSON.stringify({ t: "hello", nick: state.nick })); } catch {}
       }
+    }
+  });
+  $("btn-chat-attach").onclick = () => $("chat-file").click();
+  $("chat-file").onchange = (e) => { sendChatFiles(e.target.files); e.target.value = ""; };
+  $("chat-input").addEventListener("input", sendTyping);
+  window.addEventListener("paste", (e) => {
+    const files = e.clipboardData && e.clipboardData.files;
+    if (!files || !files.length) return;
+    if (!$("view-chat").hidden) {
+      e.preventDefault();
+      sendChatFiles(files);
+    } else if (!$("view-link").hidden) {
+      e.preventDefault();
+      queueFiles(files);
     }
   });
   $("btn-chat-copylink").onclick = async () => {
