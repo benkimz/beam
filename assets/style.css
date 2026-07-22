@@ -650,18 +650,75 @@ body.dragging::after {
 
 /* ---- private chat ---- */
 
+/* app mode: the chat fills the viewport — log flexes, composer stays pinned */
+body.chatting footer { display: none; }
+
+body.chatting main {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 72px);
+  padding-top: 4px;
+  padding-bottom: 14px;
+  overflow: hidden;
+}
+
+body.chatting #view-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+body.chatting #view-chat .back { margin-bottom: .6em; }
+body.chatting #chat-title { font-size: 1.05rem; margin-bottom: .2em; }
+body.chatting #chat-status { margin: .2em 0 .8em; }
+
+.chat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.chat-top .members { margin-bottom: 0; }
+
+.nickchip {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .74rem;
+  width: 9em;
+  flex: none;
+  padding: .4em .8em;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--dim);
+}
+
+.nickchip:focus-visible { color: var(--ink); border-style: solid; }
+
 /* the shared .invite class carries grid-area: invite — every grid hosting it
    must name that area explicitly or the item lands in implicit tracks */
 .chat-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 220px;
   grid-template-areas: "main invite";
+  grid-template-rows: minmax(0, 1fr);
   gap: 20px 24px;
-  align-items: start;
+  align-items: stretch;
   margin-top: 6px;
+  flex: 1;
+  min-height: 0;
 }
 
-.chat-main { grid-area: main; }
+.chat-grid .invite { align-self: start; }
+
+.chat-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 
 .chat-grid:has(.invite[hidden]) {
   grid-template-columns: minmax(0, 1fr);
@@ -704,9 +761,10 @@ body.dragging::after {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
-  height: min(48vh, 460px);
+  flex: 1 1 auto;
+  min-height: 160px;
   overflow-y: auto;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .msg { max-width: 78%; align-self: flex-start; }

@@ -36,6 +36,7 @@
 
   function show(name) {
     views.forEach((v) => { $("view-" + v).hidden = (v !== name); });
+    document.body.classList.toggle("chatting", name === "chat");
     window.scrollTo(0, 0);
   }
 
@@ -117,9 +118,22 @@
 
   function colorFor(id) { return "hsl(" + hueFor(id) + " 70% 55%)"; }
 
+  function baseColorName(id) {
+    return COLOR_NAMES[Math.floor(hueFor(id) / 30) % 12];
+  }
+
   function nameFor(id, nick) {
     if (nick) return nick;
-    return COLOR_NAMES[Math.floor(hueFor(id) / 30) % 12];
+    const base = baseColorName(id);
+    // collision-proof: identical color names get a peer-id suffix, and the
+    // roster order decides who keeps the plain name — same result on every device
+    const twins = state.roster
+      .filter(([rid, rnick]) => !rnick && baseColorName(rid) === base)
+      .map(([rid]) => rid);
+    if (twins.length > 1 && twins.sort()[0] !== id) {
+      return base + "·" + id.slice(-2).toLowerCase();
+    }
+    return base;
   }
 
   // ---------- signaling ----------

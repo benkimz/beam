@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>beam™ — send anything to any device</title>
 <meta name="description" content="Share files and text directly between iPhone, Android, Windows or Mac with a QR code — no app, no account, no size limit. Plus one-time secret messages that burn after reading.">
 <link rel="canonical" href="https://beamtm.com/">
@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=18">
+<link rel="stylesheet" href="/assets/style.css?v=19">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -252,7 +252,11 @@
 
     <div class="chat-grid">
       <div class="chat-main">
-        <div class="members" id="chat-members"></div>
+        <div class="chat-top">
+          <div class="members" id="chat-members"></div>
+          <input type="text" id="chat-nick" class="nickchip" autocomplete="off"
+                 maxlength="24" placeholder="✎ name" aria-label="Nickname (optional)">
+        </div>
         <div class="chat-log" id="chat-log"></div>
         <div class="chat-typing" id="chat-typing"></div>
         <div class="chat-row">
@@ -263,11 +267,6 @@
           <button class="btn" id="btn-chat-send">Send</button>
         </div>
         <input type="file" id="chat-file" multiple hidden>
-        <div class="chat-nickrow">
-          <label for="chat-nick" class="note">Name</label>
-          <input type="text" id="chat-nick" autocomplete="off" maxlength="24"
-                 placeholder="optional — otherwise you're a color">
-        </div>
       </div>
 
       <aside class="invite" id="chat-invite" hidden>
@@ -442,6 +441,6 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/qr.js?v=1"></script>
-<script src="/assets/app.js?v=18"></script>
+<script src="/assets/app.js?v=19"></script>
 </body>
 </html>

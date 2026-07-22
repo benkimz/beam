@@ -24,3 +24,9 @@ RewriteRule ^ https://beamtm.com%{REQUEST_URI} [L,R=301]
     Header set Cache-Control "public, max-age=86400"
   </IfModule>
 </FilesMatch>
+
+<FilesMatch "\.html$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache"
+  </IfModule>
+</FilesMatch>
