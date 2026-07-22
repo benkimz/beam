@@ -3,7 +3,7 @@
 > Zero-friction transfer between devices, plus one-time self-destructing secrets.
 > No accounts, no API keys, no app. Plain JSON over HTTPS. Free.
 
-beam does two things:
+beam does three things:
 
 1. **Beams** — pair up to 8 devices with a 6-character code (humans scan a QR).
    Files and text travel directly between browsers over WebRTC; the server only
@@ -12,6 +12,10 @@ beam does two things:
    moment it is read once (or when its TTL of up to 7 days lapses). The server
    only ever holds ciphertext; the AES-256-GCM key travels in the URL fragment,
    which browsers never send to the server.
+3. **Private chat** — instant ephemeral rooms (link: beamtm.com/#c=CODE, up to
+   9 people). Messages travel only over WebRTC data channels between browsers,
+   never through the server, and are not persisted anywhere. Rooms die with
+   their host; 15-min idle timeout, 12-h cap.
 
 ## For AI agents
 

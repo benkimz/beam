@@ -99,11 +99,34 @@
   history forever. One caution: the link <em>is</em> the secret — anyone holding it can
   do the one read. Send it to the right person.</p>
 
+  <h2 id="chat">Private chat</h2>
+  <ol>
+    <li>Press <em>Start a chat</em>. You get a room with a QR code, a short invite
+    link (<code>beamtm.com/#c=CODE</code>), and a 6-character code — share any of them.
+    Up to 8 people can join; no signups, just connecting.</li>
+    <li>Messages travel <em>device-to-device</em> over encrypted WebRTC connections,
+    through the room's host. They are never sent to, stored on, or relayed by the
+    server — by construction, not policy. Someone joining late sees nothing from
+    before they arrived; close the tab and your copy is gone.</li>
+    <li>Everyone appears as a color (with a matching name like <em>cyan</em> or
+    <em>amber</em>). Set a nickname if you like — names are exchanged directly between
+    devices and never touch the server either.</li>
+    <li>The room lives as long as its host stays: when the person who started it
+    leaves, the room closes for everyone. Rooms also close after 15 minutes with
+    nobody active, and 12 hours at most.</li>
+  </ol>
+  <p>One honest limitation: because chat refuses to fall back to the server (that's
+  the point), two devices that cannot reach each other directly — rare, but it
+  happens on very strict networks — simply can't chat. beam will say so rather than
+  quietly routing your conversation through a server.</p>
+
   <h2 id="limits">Limits at a glance</h2>
   <table>
     <tr><th>Thing</th><th>Limit</th></tr>
     <tr><td>Devices per beam</td><td>8 (plus the host)</td></tr>
     <tr><td>Beam session lifetime</td><td>15 minutes</td></tr>
+    <tr><td>Chat room lifetime</td><td>while the host stays · 15 min idle · 12 h max</td></tr>
+    <tr><td>People per chat room</td><td>9 (host + 8)</td></tr>
     <tr><td>Direct transfer size</td><td>unlimited</td></tr>
     <tr><td>Relay-fallback file size</td><td>7 MB</td></tr>
     <tr><td>Secret length</td><td>40,000 characters</td></tr>

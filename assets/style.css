@@ -648,6 +648,119 @@ body.dragging::after {
 .tx a { color: var(--pulse); font-weight: 700; text-decoration: none; white-space: nowrap; }
 .tx .txt { white-space: pre-wrap; word-break: break-word; }
 
+/* ---- private chat ---- */
+
+.chat-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 20px 24px;
+  align-items: start;
+  margin-top: 6px;
+}
+
+.chat-grid:has(.invite[hidden]) { grid-template-columns: minmax(0, 1fr); }
+
+.members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  min-height: 1.6em;
+}
+
+.member {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .74rem;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: .25em .8em;
+  background: var(--card);
+}
+
+.member i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  height: min(48vh, 460px);
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.msg { max-width: 78%; align-self: flex-start; }
+.msg.mine { align-self: flex-end; text-align: right; }
+
+.msg .who {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .68rem;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.msg .bubble {
+  display: inline-block;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .5em .85em;
+  font-size: .95rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+}
+
+.msg.mine .bubble {
+  background: var(--pulse);
+  border-color: var(--pulse);
+  color: var(--pulse-ink);
+}
+
+.chat-sys {
+  align-self: center;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .72rem;
+  color: var(--dim);
+}
+
+.chat-row { display: flex; gap: 10px; }
+.chat-row input { flex: 1; min-width: 0; }
+
+.chat-nickrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.chat-nickrow input { width: 16em; max-width: 100%; }
+
+@media (max-width: 720px) {
+  .chat-grid, .chat-grid:has(.invite[hidden]) { grid-template-columns: minmax(0, 1fr); }
+  .chat-grid .invite:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    order: -1;
+  }
+  .chat-grid .invite .qr-card svg { max-width: 110px; }
+  .msg { max-width: 92%; }
+}
+
 /* ---- secrets ---- */
 
 textarea#secret-text {

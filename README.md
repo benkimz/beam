@@ -19,6 +19,10 @@ beam does two things, both with zero setup:
   **AES-256-GCM in the browser** before upload, and the decryption key travels in
   the URL fragment — which browsers never send to servers — so the server only ever
   stores ciphertext it cannot read.
+- **Private chat** — instant ephemeral rooms with a short invite link, up to 9
+  people. Messages travel **only over WebRTC data channels** between browsers —
+  there is deliberately no server fallback — and are never persisted anywhere.
+  Rooms close when the host leaves.
 
 Because the entire codebase is here, none of those privacy claims have to be taken
 on faith.

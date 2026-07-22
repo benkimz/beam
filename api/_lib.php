@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 const BEAM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const SESSION_TTL = 900;          // beam sessions live 15 minutes
+const CHAT_MAX_AGE = 43200;       // chat rooms: 12 h hard cap...
+const CHAT_IDLE_TTL = 900;        // ...with a 15-min sliding idle timeout
 const SECRET_DEFAULT_TTL = 86400;
 const SECRET_MAX_TTL = 604800;
 const SECRET_MAX_BYTES = 65536;   // ciphertext cap
@@ -33,11 +35,13 @@ function beam_db(): PDO {
         host_seen INTEGER NOT NULL,
         guest_seen INTEGER NOT NULL DEFAULT 0,
         guests INTEGER NOT NULL DEFAULT 0,
-        ended INTEGER NOT NULL DEFAULT 0
+        ended INTEGER NOT NULL DEFAULT 0,
+        kind TEXT NOT NULL DEFAULT \'b\'
     )');
     // migrations for databases created before these columns existed
     try { $db->exec('ALTER TABLE sessions ADD COLUMN guests INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     try { $db->exec('ALTER TABLE sessions ADD COLUMN ended INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+    try { $db->exec("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'b'"); } catch (Throwable $e) {}
     $db->exec('CREATE TABLE IF NOT EXISTS msgs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL,
@@ -81,7 +85,10 @@ function beam_cleanup(PDO $db): void {
     }
     $now = time();
     $db->prepare('DELETE FROM msgs WHERE created < ?')->execute([$now - SESSION_TTL]);
-    $db->prepare('DELETE FROM sessions WHERE created < ?')->execute([$now - SESSION_TTL]);
+    $db->prepare("DELETE FROM sessions WHERE kind != 'c' AND created < ?")
+       ->execute([$now - SESSION_TTL]);
+    $db->prepare("DELETE FROM sessions WHERE kind = 'c' AND (created < ? OR (host_seen < ? AND guest_seen < ?))")
+       ->execute([$now - CHAT_MAX_AGE, $now - CHAT_IDLE_TTL, $now - CHAT_IDLE_TTL]);
     $db->prepare('DELETE FROM secrets WHERE expires < ?')->execute([$now]);
     foreach (glob(beam_data_dir() . '/relay/*') ?: [] as $f) {
         if (@filemtime($f) < $now - SESSION_TTL) {
@@ -129,8 +136,20 @@ function beam_valid_peer($p): ?string {
 }
 
 function beam_session(PDO $db, string $code): ?array {
-    $st = $db->prepare('SELECT * FROM sessions WHERE code = ? AND created >= ?');
-    $st->execute([$code, time() - SESSION_TTL]);
+    $st = $db->prepare('SELECT * FROM sessions WHERE code = ?');
+    $st->execute([$code]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
-    return $row === false ? null : $row;
+    if ($row === false) {
+        return null;
+    }
+    $now = time();
+    if (($row['kind'] ?? 'b') === 'c') {
+        // chat rooms: sliding idle timeout under a hard age cap
+        $lastSeen = max((int)$row['host_seen'], (int)$row['guest_seen']);
+        $alive = (int)$row['created'] >= $now - CHAT_MAX_AGE
+              && $lastSeen >= $now - CHAT_IDLE_TTL;
+    } else {
+        $alive = (int)$row['created'] >= $now - SESSION_TTL;
+    }
+    return $alive ? $row : null;
 }

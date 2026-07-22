@@ -112,6 +112,30 @@
     End-to-end encryption for the relay path is on the roadmap.</li>
   </ul>
 
+  <h2 id="chat">Private chat</h2>
+  <ul>
+    <li>Chat rooms reuse the beam session and signaling machinery (same codes, same
+    handshake, same 8-guest cap), with one lifetime difference: rooms stay alive
+    while participants are active (15-minute sliding idle timeout, 12-hour hard cap)
+    instead of a fixed 15 minutes.</li>
+    <li><strong>Chat messages never transit the server — by construction.</strong> They
+    travel only over the DTLS-encrypted WebRTC data channels, star-routed through the
+    room's host device. Unlike file beams, chat has <em>no relay fallback</em>: if a
+    direct connection cannot be formed, the room refuses to work rather than
+    downgrade. The server's involvement is the connection handshake, nothing more.</li>
+    <li>Nicknames and the member roster are exchanged over the same data channels —
+    the server never sees names. The identity colors are derived locally from peer
+    ids.</li>
+    <li>Nothing is persisted anywhere: no history, no offline delivery, and a
+    participant who joins late cannot see earlier messages, because no copy of them
+    exists outside the browsers that were present. When the host leaves, the room
+    ends for everyone.</li>
+    <li>Same caveats as beams: the invite code is the capability (anyone holding it
+    during the room's life can join and will be visible in the member list), and the
+    signaling handshake necessarily reveals participant IP addresses to the server
+    for ≤ the session's life.</li>
+  </ul>
+
   <h2 id="secrets">Secrets — the exact cryptography</h2>
   <ul>
     <li><strong>Algorithm:</strong> AES-256-GCM via the browser's WebCrypto API
@@ -140,7 +164,7 @@
     <tr><td>Signaling messages</td><td>SDP / ICE (includes IPs), control notices</td><td>≤ 15 minutes</td></tr>
     <tr><td>Relay files</td><td>file bytes (cleartext), filename, size</td><td>until pickup; ≤ 15 minutes</td></tr>
     <tr><td>Secrets</td><td>ciphertext, random id, expiry</td><td>until read; ≤ chosen TTL (max 7 days)</td></tr>
-    <tr><td>Usage counters</td><td>one integer per metric per day (<code>page_view</code>, <code>beam_created</code>, <code>beam_joined</code>, <code>secret_created</code>, <code>secret_read</code>, <code>relay_upload</code>)</td><td>indefinite (aggregate only)</td></tr>
+    <tr><td>Usage counters</td><td>one integer per metric per day (<code>page_view</code>, <code>beam_created</code>, <code>beam_joined</code>, <code>chat_created</code>, <code>chat_joined</code>, <code>secret_created</code>, <code>secret_read</code>, <code>relay_upload</code>)</td><td>indefinite (aggregate only)</td></tr>
   </table>
   <p>Deletion is enforced by opportunistic garbage collection on incoming requests
   rather than a scheduled job, so precise deletion time can lag TTL by a short,

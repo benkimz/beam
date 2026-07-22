@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=15">
+<link rel="stylesheet" href="/assets/style.css?v=16">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -139,6 +139,12 @@
         we never see it.</p>
         <span class="go">Write a secret →</span>
       </button>
+      <button class="card" id="btn-chat">
+        <h2>Private chat</h2>
+        <p>An instant room with a short link. Messages go device-to-device and are
+        never stored anywhere — close it and it's gone.</p>
+        <span class="go">Start a chat →</span>
+      </button>
     </div>
 
     <div class="join-row">
@@ -236,6 +242,37 @@
       </aside>
 
       <div class="transfers" id="transfers"></div>
+    </div>
+  </section>
+
+  <section id="view-chat" hidden>
+    <a class="back" href="/" data-back>← Leave room</a>
+    <h2 id="chat-title">Private chat</h2>
+    <p class="status" id="chat-status">Setting up the room…</p>
+
+    <div class="chat-grid">
+      <div class="chat-main">
+        <div class="members" id="chat-members"></div>
+        <div class="chat-log" id="chat-log"></div>
+        <div class="chat-row">
+          <input type="text" id="chat-input" autocomplete="off" maxlength="2000"
+                 placeholder="Message — device-to-device, never stored">
+          <button class="btn" id="btn-chat-send">Send</button>
+        </div>
+        <div class="chat-nickrow">
+          <label for="chat-nick" class="note">Name</label>
+          <input type="text" id="chat-nick" autocomplete="off" maxlength="24"
+                 placeholder="optional — otherwise you're a color">
+        </div>
+      </div>
+
+      <aside class="invite" id="chat-invite" hidden>
+        <div class="qr-card" id="qr-chat" aria-label="QR code to join this chat"></div>
+        <div class="invite-code" id="code-chat"></div>
+        <button class="btn btn--ghost" id="btn-chat-copylink">Copy invite link</button>
+        <p class="note">Anyone with the link or code can join — up to 8 people.
+        The room closes when you leave.</p>
+      </aside>
     </div>
   </section>
 
@@ -401,6 +438,6 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/qr.js?v=1"></script>
-<script src="/assets/app.js?v=13"></script>
+<script src="/assets/app.js?v=16"></script>
 </body>
 </html>

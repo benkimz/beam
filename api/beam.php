@@ -32,12 +32,13 @@ switch ($action) {
         if ($code === null) {
             beam_json(['error' => 'busy, try again'], 503);
         }
+        $kind = ($in['kind'] ?? 'b') === 'c' ? 'c' : 'b';
         $db->prepare('DELETE FROM sessions WHERE code = ?')->execute([$code]);
         $db->prepare('DELETE FROM msgs WHERE code = ?')->execute([$code]);
-        $db->prepare('INSERT INTO sessions (code, created, host_seen, guests) VALUES (?, ?, ?, 0)')
-           ->execute([$code, $now, $now]);
-        beam_count($db, 'beam_created');
-        beam_json(['code' => $code, 'ttl' => SESSION_TTL, 'maxGuests' => MAX_GUESTS]);
+        $db->prepare('INSERT INTO sessions (code, created, host_seen, guests, kind) VALUES (?, ?, ?, 0, ?)')
+           ->execute([$code, $now, $now, $kind]);
+        beam_count($db, $kind === 'c' ? 'chat_created' : 'beam_created');
+        beam_json(['code' => $code, 'ttl' => SESSION_TTL, 'maxGuests' => MAX_GUESTS, 'kind' => $kind]);
     }
 
     case 'join': {
@@ -58,8 +59,9 @@ switch ($action) {
             beam_json(['error' => 'This beam is full — up to ' . MAX_GUESTS . ' devices can join.'], 409);
         }
         $peer = 'g' . beam_new_code(4);
-        beam_count($db, 'beam_joined');
-        beam_json(['ok' => true, 'peer' => $peer]);
+        $kind = $s['kind'] ?? 'b';
+        beam_count($db, $kind === 'c' ? 'chat_joined' : 'beam_joined');
+        beam_json(['ok' => true, 'peer' => $peer, 'kind' => $kind]);
     }
 
     case 'signal': {

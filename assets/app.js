@@ -3,13 +3,16 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const views = ["home", "host", "link", "secret", "reveal"];
+  const views = ["home", "host", "link", "chat", "secret", "reveal"];
   const CHUNK = 16384;
   const HIGH_WATER = 1048576;
   const RELAY_MAX = 7 * 1048576;
 
   const state = {
     code: null,
+    mode: "beam",        // 'beam' | 'chat'
+    nick: "",
+    roster: [],          // [[peerId, nick], ...] — host-authored, P2P only
     peer: null,          // my id: 'h' or 'gXXXX'
     peers: new Map(),    // remoteId -> { pc, dc, open, pendingIce: [] }
     relayMode: false,
@@ -99,6 +102,25 @@
     },
   };
 
+  // ---------- identity colors (derived, never on the server) ----------
+
+  const COLOR_NAMES = ["coral", "amber", "gold", "lime", "mint", "jade",
+    "cyan", "azure", "indigo", "violet", "orchid", "rose"];
+
+  function hueFor(id) {
+    let h = 0;
+    const s = (state.code || "") + id;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h % 360;
+  }
+
+  function colorFor(id) { return "hsl(" + hueFor(id) + " 70% 55%)"; }
+
+  function nameFor(id, nick) {
+    if (nick) return nick;
+    return COLOR_NAMES[Math.floor(hueFor(id) / 30) % 12];
+  }
+
   // ---------- signaling ----------
 
   async function sendSignal(to, obj) {
@@ -133,7 +155,8 @@
           await handleSignal(m.sender, body);
         }
         if (d.ended && state.code) {
-          endBeam(isHost() ? undefined : "The host ended this beam.");
+          endBeam(isHost() ? undefined
+            : (state.mode === "chat" ? "The host closed the room." : "The host ended this beam."));
           return;
         }
       } catch (e) {
@@ -247,6 +270,15 @@
       state.relayMode = false;
       clearTimeout(state.fallbackTimer);
       document.body.classList.add("beaming");
+      if (state.mode === "chat") {
+        if (!isHost()) {
+          try { dc.send(JSON.stringify({ t: "hello", nick: state.nick })); } catch {}
+        } else {
+          broadcastRoster();
+        }
+        updateChatUI();
+        return;
+      }
       updateLinkStatus();
       show("link");
       toast(isHost() && openPeers().length > 1 ? "Another device connected." : "Devices connected.");
@@ -259,6 +291,10 @@
         if (m.t === "text") addTextTx("in", m.body);
         else if (m.t === "file") beginIncoming(remoteId, m);
         else if (m.t === "end") finishIncoming(remoteId);
+        else if (m.t === "bye") byeFrom(remoteId);
+        else if (m.t === "chat") onChatMsg(remoteId, m);
+        else if (m.t === "hello") onHello(remoteId, m);
+        else if (m.t === "roster") onRoster(m);
       } else {
         appendIncoming(remoteId, ev.data);
       }
@@ -273,6 +309,16 @@
     state.incomingBy.delete(remoteId);
     try { p.dc && p.dc.close(); } catch {}
     try { p.pc.close(); } catch {}
+    if (state.mode === "chat") {
+      if (isHost()) {
+        addChatSys(nameFor(remoteId, p.nick) + " left");
+        broadcastRoster();
+        updateChatUI();
+      } else {
+        endBeam("Lost the connection to the room.");
+      }
+      return;
+    }
     if (isHost()) {
       if (anyOpen()) {
         updateLinkStatus();
@@ -288,13 +334,18 @@
 
   function byeFrom(remoteId) {
     if (!isHost() && remoteId === "h") {
-      endBeam("The host ended this beam.");
+      endBeam(state.mode === "chat" ? "The host closed the room." : "The host ended this beam.");
       return;
     }
     peerGone(remoteId);
   }
 
   function hostIdleState() {
+    if (state.mode === "chat") {
+      document.body.classList.remove("beaming");
+      updateChatUI();
+      return;
+    }
     state.relayMode = false;
     document.body.classList.remove("beaming");
     setInviteVisible(!!state.code);
@@ -360,15 +411,24 @@
       const d = await api("beam.php", { action: "join", code });
       state.code = code;
       state.peer = d.peer;
+      state.mode = d.kind === "c" ? "chat" : "beam";
       state.lastMsgId = 0;
       history.replaceState(null, "", "/");
       const p = createPeerFor("h", true);
       const offer = await p.pc.createOffer();
       await p.pc.setLocalDescription(offer);
       await sendSignal("h", { type: "offer", sdp: offer.sdp });
-      $("link-title").textContent = "Connecting…";
-      $("link-status").textContent = "Joining beam " + code + "…";
-      show("link");
+      if (state.mode === "chat") {
+        $("chat-invite").hidden = true;
+        const st = $("chat-status");
+        st.classList.remove("live");
+        st.textContent = "Joining room " + code + "…";
+        show("chat");
+      } else {
+        $("link-title").textContent = "Connecting…";
+        $("link-status").textContent = "Joining beam " + code + "…";
+        show("link");
+      }
       startPolling();
       armFallback();
     } catch (e) {
@@ -380,6 +440,13 @@
     clearTimeout(state.fallbackTimer);
     state.fallbackTimer = setTimeout(() => {
       if (!anyOpen() && state.code) {
+        if (state.mode === "chat") {
+          // no server fallback for chat, by design — messages must never transit the server
+          if (!isHost()) {
+            endBeam("Couldn't connect directly — private chat needs a direct connection between devices.");
+          }
+          return;
+        }
         enterRelayMode("Couldn't connect directly (strict network) — using relay instead.");
       }
     }, 15000);
@@ -424,8 +491,157 @@
     setInviteVisible(false);
     $("qr-mini").innerHTML = "";
     $("link-status").classList.add("live");
+    state.roster = [];
+    state.mode = "beam";
+    $("chat-log").innerHTML = "";
+    $("chat-members").innerHTML = "";
+    $("qr-chat").innerHTML = "";
+    $("chat-input").value = "";
     if (msg) toast(msg);
     show("home");
+  }
+
+  // ---------- private chat ----------
+
+  async function startChatAsHost() {
+    try {
+      const d = await api("beam.php", { action: "create", kind: "c" });
+      state.code = d.code;
+      state.mode = "chat";
+      state.peer = "h";
+      state.lastMsgId = 0;
+      const joinUrl = location.origin + "/#c=" + d.code;
+      renderQR(joinUrl, "qr-chat");
+      $("code-chat").textContent = d.code;
+      history.replaceState(null, "", "/");
+      addChatSys("Room open — messages exist only on connected devices");
+      broadcastRoster();
+      updateChatUI();
+      startPolling();
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  function updateChatUI() {
+    $("chat-invite").hidden = !isHost();
+    const st = $("chat-status");
+    const n = openPeers().length;
+    if (isHost()) {
+      if (n > 0) {
+        st.classList.add("live");
+        st.textContent = (n + 1) + " in the room · code " + state.code +
+          " — more can join with it.";
+      } else {
+        st.classList.remove("live");
+        st.textContent = "Waiting for people — share the QR, the link, or code " +
+          state.code + ".";
+      }
+    } else {
+      st.classList.add("live");
+      st.textContent = "Connected — messages go device-to-device and are never stored.";
+    }
+    show("chat");
+  }
+
+  function sendChat() {
+    const v = $("chat-input").value.trim();
+    if (!v) return;
+    if (!anyOpen()) {
+      toast("No one else is connected yet.");
+      return;
+    }
+    const payload = JSON.stringify({ t: "chat", from: state.peer, body: v, nick: state.nick });
+    for (const [, p] of openPeers()) p.dc.send(payload);
+    addChatMsg(state.peer, v, state.nick, true);
+    $("chat-input").value = "";
+  }
+
+  function onChatMsg(remoteId, m) {
+    const from = m.from || remoteId;
+    if (from === state.peer) return;
+    if (typeof m.body !== "string" || !m.body) return;
+    const nick = typeof m.nick === "string" ? m.nick.slice(0, 24) : "";
+    addChatMsg(from, m.body.slice(0, 2000), nick, false);
+    if (isHost()) {
+      const p = state.peers.get(remoteId);
+      if (p && nick && p.nick !== nick) { p.nick = nick; broadcastRoster(); }
+      const fwd = JSON.stringify({ t: "chat", from, body: m.body, nick });
+      for (const [id, peer] of openPeers()) {
+        if (id !== remoteId) peer.dc.send(fwd);
+      }
+    }
+  }
+
+  function onHello(remoteId, m) {
+    if (!isHost()) return;
+    const p = state.peers.get(remoteId);
+    if (p) p.nick = typeof m.nick === "string" ? m.nick.slice(0, 24) : "";
+    addChatSys(nameFor(remoteId, p && p.nick) + " joined");
+    broadcastRoster();
+    updateChatUI();
+  }
+
+  function onRoster(m) {
+    if (isHost() || !Array.isArray(m.m)) return;
+    state.roster = m.m.filter((e) => Array.isArray(e) && typeof e[0] === "string");
+    renderMembers();
+  }
+
+  function broadcastRoster() {
+    if (!isHost()) return;
+    const members = [["h", state.nick]];
+    for (const [id, p] of state.peers) {
+      if (p.open) members.push([id, p.nick || ""]);
+    }
+    state.roster = members;
+    renderMembers();
+    const payload = JSON.stringify({ t: "roster", m: members });
+    for (const [, p] of openPeers()) {
+      try { p.dc.send(payload); } catch {}
+    }
+  }
+
+  function renderMembers() {
+    const box = $("chat-members");
+    box.innerHTML = "";
+    for (const [id, nick] of state.roster) {
+      const chip = document.createElement("span");
+      chip.className = "member";
+      const dot = document.createElement("i");
+      dot.style.background = colorFor(id);
+      chip.append(dot, nameFor(id, nick) + (id === state.peer ? " (you)" : ""));
+      box.append(chip);
+    }
+  }
+
+  function addChatMsg(from, body, nick, mine) {
+    const log = $("chat-log");
+    const el = document.createElement("div");
+    el.className = "msg" + (mine ? " mine" : "");
+    if (!mine) {
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = nameFor(from, nick);
+      who.style.color = colorFor(from);
+      el.append(who);
+    }
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = body;
+    el.append(bubble);
+    log.append(el);
+    while (log.children.length > 500) log.firstChild.remove();
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function addChatSys(text) {
+    const log = $("chat-log");
+    const el = document.createElement("div");
+    el.className = "chat-sys";
+    el.textContent = text;
+    log.append(el);
+    log.scrollTop = log.scrollHeight;
   }
 
   // ---------- transfers (UI rows) ----------
@@ -864,6 +1080,28 @@
   // ---------- wiring ----------
 
   $("btn-start").onclick = startBeamAsHost;
+  $("btn-chat").onclick = startChatAsHost;
+  $("btn-chat-send").onclick = sendChat;
+  $("chat-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendChat();
+  });
+  $("chat-nick").addEventListener("change", () => {
+    state.nick = $("chat-nick").value.trim().slice(0, 24);
+    if (state.mode !== "chat") return;
+    if (isHost()) {
+      broadcastRoster();
+    } else {
+      const p = state.peers.get("h");
+      if (p && p.open) {
+        try { p.dc.send(JSON.stringify({ t: "hello", nick: state.nick })); } catch {}
+      }
+    }
+  });
+  $("btn-chat-copylink").onclick = async () => {
+    (await copyText(location.origin + "/#c=" + state.code))
+      ? toast("Invite link copied.")
+      : toast("Couldn't copy — the code is " + state.code);
+  };
   $("btn-secret").onclick = () => {
     $("secret-compose").hidden = false;
     $("secret-done").hidden = true;
@@ -962,7 +1200,7 @@
 
   function route() {
     const h = location.hash;
-    if (h.startsWith("#j=")) {
+    if (h.startsWith("#j=") || h.startsWith("#c=")) {
       const code = h.slice(3);
       show("home");
       joinBeam(code);
