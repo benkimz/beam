@@ -1307,7 +1307,7 @@
     e.dataTransfer && [...(e.dataTransfer.types || [])].includes("Files");
   window.addEventListener("dragover", (e) => {
     e.preventDefault();
-    if (!$("view-link").hidden && dragHasFiles(e)) {
+    if ((!$("view-link").hidden || !$("view-chat").hidden) && dragHasFiles(e)) {
       document.body.classList.add("dragging");
     }
   });
@@ -1317,7 +1317,10 @@
   window.addEventListener("drop", (e) => {
     e.preventDefault();
     document.body.classList.remove("dragging");
-    if (!$("view-link").hidden && e.dataTransfer.files.length) {
+    if (!e.dataTransfer.files.length) return;
+    if (!$("view-chat").hidden) {
+      sendChatFiles(e.dataTransfer.files);
+    } else if (!$("view-link").hidden) {
       queueFiles(e.dataTransfer.files);
     }
   });
@@ -1414,7 +1417,7 @@
 
   // ---------- update beacon: long-open tabs learn about new versions ----------
 
-  const APP_VERSION = "20";
+  const APP_VERSION = "21";
   let updateNoticeShown = false;
 
   async function checkForUpdate() {

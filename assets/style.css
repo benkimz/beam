@@ -623,6 +623,9 @@ body.dragging::after {
   pointer-events: none;
 }
 
+/* in a chat room the drop sends into the conversation */
+body.chatting.dragging::after { content: "Drop anywhere to send"; }
+
 .textrow { display: flex; gap: 10px; margin-bottom: 22px; }
 .textrow input { flex: 1; min-width: 0; }
 
