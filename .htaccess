@@ -13,6 +13,11 @@ RewriteRule ^ https://beamtm.com%{REQUEST_URI} [L,R=301]
 RewriteCond %{HTTP_HOST} ^www\.beamtm\.com$ [NC]
 RewriteRule ^ https://beamtm.com%{REQUEST_URI} [L,R=301]
 
+# Consolidate the /index.html duplicate onto the canonical apex "/" so search
+# engines pass all ranking signal to one homepage URL.
+RewriteCond %{THE_REQUEST} \s/+index\.html[\s?] [NC]
+RewriteRule ^index\.html$ https://beamtm.com/ [L,R=301]
+
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "DENY"
