@@ -1344,6 +1344,57 @@ textarea#secret-text {
   vertical-align: top;
 }
 
+/* ---- SEO prose band: ways to use beam ---- */
+
+.uses {
+  margin-top: clamp(38px, 8vh, 72px);
+  max-width: 60em;
+}
+
+.uses h2 {
+  font-family: "Unbounded", sans-serif;
+  font-weight: 500;
+  font-size: 1.15rem;
+  margin-bottom: .5em;
+}
+
+.uses-lede {
+  color: var(--dim);
+  max-width: 42em;
+  margin-bottom: 1.8em;
+}
+
+.uses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.uses-grid article {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+
+.uses-grid h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: .4em;
+}
+
+.uses-grid p { color: var(--dim); font-size: .93rem; }
+
+.uses-foot {
+  color: var(--dim);
+  font-size: .93rem;
+  margin-top: 1.6em;
+  max-width: 42em;
+}
+
+.uses a { color: var(--pulse); text-decoration: none; }
+.uses a:hover { text-decoration: underline; }
+
 /* ---- footer & toast ---- */
 
 footer {

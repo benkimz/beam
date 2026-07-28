@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>beam™ — send anything to any device</title>
-<meta name="description" content="Share files and text directly between iPhone, Android, Windows or Mac with a QR code — no app, no account, no size limit. Plus one-time secret messages that burn after reading.">
+<meta name="description" content="Send files between your phone and computer — iPhone to Windows, Android to Mac — by scanning a QR code. A browser-based AirDrop alternative with no app, no account, and no size limit. Plus self-destructing secret messages and private chat.">
 <link rel="canonical" href="https://beamtm.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="beam™">
@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=21">
+<link rel="stylesheet" href="/assets/style.css?v=22">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -35,7 +35,9 @@
 {"@type":"Question","name":"Does it work between iPhone, Android, Windows, Mac and Linux?","acceptedAnswer":{"@type":"Answer","text":"Yes — any mix. beam is a good AirDrop alternative when your devices don't share an ecosystem: iPhone to Windows PC, Android to Mac, laptop to laptop. If a device has a modern browser, it can beam."}},
 {"@type":"Question","name":"How big can the files be, and how fast is it?","acceptedAnswer":{"@type":"Answer","text":"Direct beams have no size limit — files travel straight between your devices over an encrypted peer-to-peer connection, so speed depends on your network, not on us. If a strict network blocks the direct route, beam falls back to a relay for files up to 7 MB."}},
 {"@type":"Question","name":"Are my files private? Where are they stored?","acceptedAnswer":{"@type":"Answer","text":"Beamed files are never uploaded to or stored on this server — they move device-to-device over an encrypted WebRTC connection. The server's only job is introducing your devices to each other, and beam sessions self-destruct after 15 minutes."}},
-{"@type":"Question","name":"What is a one-time secret?","acceptedAnswer":{"@type":"Answer","text":"A self-destructing message. Write it, get a link, send the link to anyone — it can be opened exactly once, then it's permanently deleted. The message is encrypted in your browser before it leaves the page, and the decryption key stays in the link itself, so the server can never read what you wrote. Ideal for sharing passwords and other things that don't belong in chat history."}}
+{"@type":"Question","name":"What is a one-time secret?","acceptedAnswer":{"@type":"Answer","text":"A self-destructing message. Write it, get a link, send the link to anyone — it can be opened exactly once, then it's permanently deleted. The message is encrypted in your browser before it leaves the page, and the decryption key stays in the link itself, so the server can never read what you wrote. Ideal for sharing passwords and other things that don't belong in chat history."}},
+{"@type":"Question","name":"How do I send a file from my phone to my computer?","acceptedAnswer":{"@type":"Answer","text":"Open beamtm.com on your computer and press Start a beam — a QR code appears. Scan it with your phone's camera (or type the 6-character code into beam on the phone). The two devices connect directly, and you can drop photos, videos, or any file across in either direction. No cable, no app to install, and no emailing files to yourself."}},
+{"@type":"Question","name":"Is beam free?","acceptedAnswer":{"@type":"Answer","text":"Yes — beam is completely free, with no account and no ads. It is also open source, so anyone can read exactly how it works on GitHub."}}
 ]}
 </script>
 </head>
@@ -195,7 +197,73 @@
         in the link itself, so the server can never read what you wrote. Ideal for sharing
         passwords and other things that don't belong in chat history.</p>
       </details>
+      <details>
+        <summary>How do I send a file from my phone to my computer?</summary>
+        <p>Open beamtm.com on your computer and press <strong>Start a beam</strong> — a QR
+        code appears. Open your phone's camera and scan it (or type the 6-character code
+        into beam on the phone). The two devices connect directly, and you can drop photos,
+        videos, or any file across in either direction. There's no cable, no app to install,
+        and no emailing files to yourself.</p>
+      </details>
+      <details>
+        <summary>Is beam free?</summary>
+        <p>Yes — beam is completely free, with no account and no ads. It's also open
+        source, so anyone can read exactly how it works on
+        <a href="https://github.com/benkimz/beam">GitHub</a>.</p>
+      </details>
     </div>
+
+    <section class="uses" aria-labelledby="uses-h">
+      <h2 id="uses-h">Ways people use beam</h2>
+      <p class="uses-lede">beam is the quickest way to move something from one device to
+      another when they don't share an ecosystem — no cable, no app to install, no account,
+      and nothing parked on a cloud you have to trust. Here's what people reach for it for.</p>
+
+      <div class="uses-grid">
+        <article>
+          <h3>Phone to computer in seconds</h3>
+          <p>Snapped a photo on your phone and need it on your laptop? Instead of emailing it
+          to yourself or hunting for a cable, beam it — it arrives at full quality, with none
+          of the compression you get from messaging yourself on WhatsApp or Telegram.</p>
+        </article>
+        <article>
+          <h3>iPhone to Windows, Android to Mac</h3>
+          <p>AirDrop only works inside Apple's world and Nearby Share inside Android's. beam
+          runs in the browser, so it crosses all of them: iPhone to a Windows PC, an Android
+          phone to a MacBook, two Linux laptops. If it has a modern browser, it can send and
+          receive — a true cross-platform AirDrop alternative.</p>
+        </article>
+        <article>
+          <h3>Large files, no upload, no size limit</h3>
+          <p>Direct beams travel peer-to-peer between the two devices, so there's no upload
+          step and no size cap — send a multi-gigabyte video as easily as a screenshot.
+          Because the file never lands on a server, the only limit is your own network speed.</p>
+        </article>
+        <article>
+          <h3>Send a password that self-destructs</h3>
+          <p>Need to hand someone a password, an API key, or a private note? Write a one-time
+          secret link that deletes itself the instant it's read, so it never lingers in a
+          chat history or inbox. It's encrypted in your browser — even we can't read it.</p>
+        </article>
+        <article>
+          <h3>Beam to several devices at once</h3>
+          <p>Sharing a file with a room full of people? Up to eight devices can join a single
+          beam by scanning the same code, and everyone receives the drop — handy for
+          workshops, classrooms, and quick handoffs to a group.</p>
+        </article>
+        <article>
+          <h3>A private chat that keeps no history</h3>
+          <p>Start a room, share the short link, and talk device-to-device in a chat that
+          stores nothing and vanishes when you leave. Good for a quick, private huddle you
+          don't want logged anywhere.</p>
+        </article>
+      </div>
+
+      <p class="uses-foot">Curious how it all works under the hood? The
+      <a href="/docs/">documentation</a> walks through every feature, and the
+      <a href="/security/">security &amp; protocol page</a> lays out exactly what the
+      server can and cannot see.</p>
+    </section>
   </section>
 
   <section id="view-host" hidden>
