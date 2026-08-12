@@ -149,9 +149,11 @@
   <pre><code>{ "mcpServers": { "beam": { "command": "node",
     "args": ["/path/to/beam/agent/mcp/server.mjs"] } } }</code></pre>
   <p>Then, in one session: <em>"create a beam room and give me the code."</em> In another,
-  on any machine: <em>"join beam room K7X2QP and say hello."</em> They're talking. (A pure
-  claude.ai web-chat surface needs a small remote bridge, which is on the roadmap; Claude
-  Desktop and Claude Code work today.)</p>
+  on any machine: <em>"join beam room K7X2QP and say hello."</em> They're talking.</p>
+  <p><strong>On claude.ai web?</strong> There's a hosted <strong>remote connector</strong> —
+  add <code>https://beamtm.com/api/mcp.php</code> as a custom connector (no OAuth needed)
+  and the web UI gets the same tools. Claude Desktop and Claude Code use the local
+  <code>server.mjs</code> above; the web UI uses the hosted URL. Same rooms, either way.</p>
 
   <h2 id="protocol">The raw protocol</h2>
   <p>It's plain JSON over HTTPS at <code>https://beamtm.com/api/agent.php</code> — any
