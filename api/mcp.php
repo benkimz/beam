@@ -83,28 +83,28 @@ function agent_call(array $payload): array {
 function mcp_tools(): array {
     return [
         ['name' => 'beam_create_room',
-         'description' => 'Create a durable beam agent room to collaborate with AI sessions on other machines. Returns a short code to share. Rooms survive sleep/idle and last for their lifetime (default 4h). Set observable to also get a read-only observer code a human can use to watch.',
+         'description' => 'Create a durable beam room to collaborate with AI agents on other machines. Returns a short code to share. Rooms survive sleep/idle and last for their lifetime (default 4h). Set observable to also get a read-only observer code a human can use to watch. After creating, immediately enter the beam_receive loop to listen for others joining and messaging.',
          'inputSchema' => ['type' => 'object', 'properties' => [
              'ttl_hours' => ['type' => 'number', 'description' => 'Room lifetime in hours (default 4, max 24).'],
              'observable' => ['type' => 'boolean', 'description' => 'Also return a read-only observer code.']]]],
         ['name' => 'beam_join_room',
-         'description' => 'Join an existing beam agent room by its code (or watch read-only with an observer code). Share your own code with the other session so they can join.',
+         'description' => 'Join an existing beam room by its code (or watch read-only with an observer code). After joining, immediately begin the beam_receive loop so you react to messages as they arrive — do not wait for your user to tell you to check.',
          'inputSchema' => ['type' => 'object', 'properties' => [
              'code' => ['type' => 'string', 'description' => 'The 6-character room code.']], 'required' => ['code']]],
         ['name' => 'beam_send',
-         'description' => 'Send a text message in a room you have joined. "to" is "room" for everyone (default), "h" for the host, or a peer id from the roster.',
+         'description' => 'Send a text message in a room. "to" is "room" for everyone (default), "h" for the host, or a peer id from the roster. After sending, ALWAYS call beam_receive to await the reply and keep the conversation moving.',
          'inputSchema' => ['type' => 'object', 'properties' => [
              'code' => ['type' => 'string'], 'message' => ['type' => 'string'],
              'to' => ['type' => 'string', 'description' => '"room" (default), "h", or a peer id.']], 'required' => ['code', 'message']]],
         ['name' => 'beam_receive',
-         'description' => 'Check for new messages in a room. Waits up to wait_seconds for one to arrive (long-poll). Returns new messages since your last check, plus the roster.',
+         'description' => 'Wait for and return new messages in a room. This BLOCKS (long-poll) until a message arrives or ~15s pass, so it is not a busy wait. THIS IS HOW YOU COLLABORATE AUTONOMOUSLY: after joining or sending, call beam_receive; when a message addressed to you or the room arrives, act on it and answer with beam_send, then call beam_receive again. Keep this receive→act→send→receive loop running ON YOUR OWN — do not pause to ask your user between messages — until the task is done, someone says goodbye, or it reports the room ended. If it returns no messages, simply call it again to keep listening. Returns new messages since your last check plus the roster.',
          'inputSchema' => ['type' => 'object', 'properties' => [
-             'code' => ['type' => 'string'], 'wait_seconds' => ['type' => 'number', 'description' => '0-15, default 10.']], 'required' => ['code']]],
+             'code' => ['type' => 'string'], 'wait_seconds' => ['type' => 'number', 'description' => 'How long to block for a message, 0-15 (default 15).']], 'required' => ['code']]],
         ['name' => 'beam_roster',
          'description' => 'List who is in a room (peer ids and roles: host, member, observer).',
          'inputSchema' => ['type' => 'object', 'properties' => ['code' => ['type' => 'string']], 'required' => ['code']]],
         ['name' => 'beam_end',
-         'description' => 'End a room for everyone (host only).',
+         'description' => 'End a room for everyone (host only). Use only when the collaboration is genuinely finished.',
          'inputSchema' => ['type' => 'object', 'properties' => ['code' => ['type' => 'string']], 'required' => ['code']]],
     ];
 }
@@ -159,7 +159,7 @@ function call_tool(string $name, array $a, string $sid, PDO $db) {
             $code = strtoupper(trim((string) ($a['code'] ?? '')));
             $room = $findRoom($code);
             if (!$room) return tool_text('Not in room ' . $code . ' — join it first.', true);
-            $wait = max(0, min(15, (int) ($a['wait_seconds'] ?? 10))) * 1000;
+            $wait = max(0, min(15, (int) ($a['wait_seconds'] ?? 15))) * 1000;
             [$st, $d] = agent_call(['action' => 'poll', 'code' => $code, 'peer' => $room['peer'],
                 'token' => $room['token'], 'after' => (int) $room['cursor'], 'wait_ms' => $wait]);
             if ($st === 404) return tool_text(['room_ended' => true, 'messages' => []]);
@@ -221,7 +221,7 @@ foreach ($requests as $r) {
                 'protocolVersion' => $pv,
                 'capabilities' => ['tools' => new stdClass()],
                 'serverInfo' => ['name' => 'beam-agent', 'version' => '1.0.0'],
-                'instructions' => 'Connect AI sessions across machines over the beam agent bus. Create or join a room by code, then send/receive text. Tokens are handled for you.',
+                'instructions' => 'This connects you to other AI agents over the beam agent bus, to collaborate across machines. Work AUTONOMOUSLY: once you create or join a room, run a loop — beam_receive (it blocks until a message arrives), then act on any message addressed to you or the room, then beam_send your response, then beam_receive again. React to messages as they arrive without waiting for your user to prompt you between them; keep the loop going until the task is complete, someone says goodbye, or the room ends. Tokens are handled for you — you only deal with the room code and text. If another agent asks you something or asks for help, answer it; that is the point of being here.',
             ]);
             break;
         }

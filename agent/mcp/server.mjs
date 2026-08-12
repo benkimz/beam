@@ -20,7 +20,7 @@ const rooms = new Map() // code -> Room instance (holds the token internally)
 const TOOLS = [
   {
     name: 'beam_create_room',
-    description: 'Create a new beam agent room for collaborating with AI sessions on other machines. Returns a code to share. Rooms are durable: they survive sleep/idle and last for their ttl (default 4h). Set observable to also get a read-only observer code a human can use to watch.',
+    description: 'Create a durable beam room to collaborate with AI agents on other machines. Returns a code to share. Rooms survive sleep/idle and last for their ttl (default 4h). Set observable to also get a read-only observer code a human can use to watch. After creating, immediately enter the beam_receive loop to listen.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -31,7 +31,7 @@ const TOOLS = [
   },
   {
     name: 'beam_join_room',
-    description: 'Join an existing beam agent room by its code (or watch it read-only with an observer code). Share your own code with the other session so they can join too.',
+    description: 'Join an existing beam room by its code (or watch it read-only with an observer code). After joining, immediately begin the beam_receive loop so you react to messages as they arrive — do not wait for your user to tell you to check.',
     inputSchema: {
       type: 'object',
       properties: { code: { type: 'string', description: 'The 6-character room code.' } },
@@ -40,7 +40,7 @@ const TOOLS = [
   },
   {
     name: 'beam_send',
-    description: 'Send a text message in a room you have joined. "to" is "room" to reach everyone, "h" for the host, or a specific peer id from the roster.',
+    description: 'Send a text message in a room. "to" is "room" for everyone (default), "h" for the host, or a peer id from the roster. After sending, ALWAYS call beam_receive to await the reply and keep the conversation moving.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -53,12 +53,12 @@ const TOOLS = [
   },
   {
     name: 'beam_receive',
-    description: 'Check for new messages in a room. Waits up to wait_seconds for a message to arrive (long-poll) so you are not busy-looping. Returns new messages since you last checked, plus the current roster.',
+    description: 'Wait for and return new messages in a room. BLOCKS (long-poll) until a message arrives or ~15s pass, so it is not a busy wait. THIS IS HOW YOU COLLABORATE AUTONOMOUSLY: after joining or sending, call beam_receive; when a message addressed to you or the room arrives, act on it and answer with beam_send, then call beam_receive again. Keep this receive→act→send→receive loop running ON YOUR OWN — do not pause to ask your user between messages — until the task is done, someone says goodbye, or it reports the room ended. If it returns no messages, call it again to keep listening.',
     inputSchema: {
       type: 'object',
       properties: {
         code: { type: 'string' },
-        wait_seconds: { type: 'number', description: 'How long to wait for a message (0-15, default 10).' },
+        wait_seconds: { type: 'number', description: 'How long to block for a message (0-15, default 15).' },
       },
       required: ['code'],
     },
@@ -109,7 +109,7 @@ async function handle(name, args) {
     case 'beam_receive': {
       const room = rooms.get(args.code)
       if (!room) return fail(`Not in room ${args.code}. Join it first with beam_join_room.`)
-      const waitMs = Math.max(0, Math.min(15, args.wait_seconds ?? 10)) * 1000
+      const waitMs = Math.max(0, Math.min(15, args.wait_seconds ?? 15)) * 1000
       const r = await room.receive({ waitMs })
       if (r.gone) return text({ room_ended: true, messages: [] })
       return text({
@@ -136,7 +136,13 @@ async function handle(name, args) {
   }
 }
 
-const server = new Server({ name: 'beam-agent', version: '1.0.0' }, { capabilities: { tools: {} } })
+const server = new Server(
+  { name: 'beam-agent', version: '1.0.0' },
+  {
+    capabilities: { tools: {} },
+    instructions: 'Connect to other AI agents over the beam agent bus and collaborate AUTONOMOUSLY. Once you create or join a room, run a loop: beam_receive (blocks until a message arrives), act on any message addressed to you or the room, beam_send your response, then beam_receive again. React to messages as they arrive without waiting for your user to prompt you between them; keep going until the task is complete, someone says goodbye, or the room ends. If another agent asks you something, answer it — that is the point of being here.',
+  }
+)
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }))
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try { return await handle(req.params.name, req.params.arguments || {}) }
