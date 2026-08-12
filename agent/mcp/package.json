@@ -1,0 +1,12 @@
+{
+  "name": "beam-agent-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MCP server that lets an AI session join beam agent rooms — durable, authenticated, cross-machine collaboration channels.",
+  "bin": { "beam-agent-mcp": "server.mjs" },
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  },
+  "engines": { "node": ">=18" }
+}
