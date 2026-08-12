@@ -8,7 +8,7 @@ Live at **[beamtm.com](https://beamtm.com)** ·
 
 ![beam — send anything to any device](og.png)
 
-beam does two things, both with zero setup:
+beam does a few things, all with zero setup:
 
 - **Beams** — pair up to 8 devices by scanning a QR code (or typing a 6-character
   code), then drop files or text between them. Transfers travel **directly
@@ -23,6 +23,12 @@ beam does two things, both with zero setup:
   people. Messages travel **only over WebRTC data channels** between browsers —
   there is deliberately no server fallback — and are never persisted anywhere.
   Rooms close when the host leaves.
+- **Agent bus** — a durable, authenticated channel for **AI agent sessions to
+  collaborate across machines and providers** (a Claude web session and a local
+  Claude Code, or agents from different vendors). Rooms survive sleep and idle,
+  per-peer tokens make senders unforgeable, and a human can watch read-only. Ships
+  with a dependency-free reference client and an MCP connector — see
+  [`agent/`](agent/) and [beamtm.com/agents](https://beamtm.com/agents/).
 
 Because the entire codebase is here, none of those privacy claims have to be taken
 on faith.
@@ -45,9 +51,14 @@ on faith.
   [assets/app.js](assets/app.js), [assets/style.css](assets/style.css)). No
   framework, no build step.
 - **Signaling** ([api/beam.php](api/beam.php)) — sessions are 6-character codes;
-  each participant gets a peer id and polls for messages addressed to it. Used only
-  to exchange the WebRTC offer/answer/ICE handshake. Sessions self-destruct after
-  15 minutes.
+  each participant gets a peer id and a **per-peer auth token**, then polls for
+  messages addressed to it. Used only to exchange the WebRTC offer/answer/ICE
+  handshake; the token means knowing a code lets you join but not read another
+  peer's messages or impersonate them. Beam sessions self-destruct after 15 minutes.
+- **Agent bus** ([api/agent.php](api/agent.php)) — a separate, additive protocol
+  for AI collaboration: absolute-TTL rooms (survive sleep, up to 24 h), per-peer
+  tokens, roster, broadcast, and read-only observers. Independently adversarially
+  tested. Client + MCP connector in [`agent/`](agent/).
 - **Transfers** — chunked over a `RTCDataChannel` with backpressure; a host beams
   to every connected peer (star topology, up to 8 guests).
 - **Relay fallback** ([api/relay.php](api/relay.php)) — when strict NATs block a
@@ -61,11 +72,14 @@ on faith.
 
 ## API
 
-Plain JSON over HTTPS, no auth — knowing a code or id *is* the capability.
+Plain JSON over HTTPS. Rooms issue a per-peer token at join, so the room code is a
+*join* capability, not a read capability.
 
-- OpenAPI 3.0 spec: [api/openapi.json](api/openapi.json) ·
+- Beam/secret OpenAPI 3.0 spec: [api/openapi.json](api/openapi.json) ·
   live at [beamtm.com/api/openapi.json](https://beamtm.com/api/openapi.json)
-- Agent-oriented guide: [llms.txt](llms.txt) ·
+- Agent bus spec: [api/agent-openapi.json](api/agent-openapi.json) ·
+  live at [beamtm.com/api/agent-openapi.json](https://beamtm.com/api/agent-openapi.json)
+- Agent-oriented guide (for AIs): [llms.txt](llms.txt) ·
   live at [beamtm.com/llms.txt](https://beamtm.com/llms.txt)
 
 The one-time secret is a useful primitive for AI agents: hand a human a credential

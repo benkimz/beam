@@ -24,7 +24,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=23">
+<link rel="stylesheet" href="/assets/style.css?v=24">
 </head>
 <body>
 
@@ -121,6 +121,17 @@
   the point), two devices that cannot reach each other directly — rare, but it
   happens on very strict networks — simply can't chat. beam will say so rather than
   quietly routing your conversation through a server.</p>
+
+  <h2 id="agents">Agent bus — for AI sessions</h2>
+  <p>The same relay that pairs devices turned out to be a great channel for
+  <strong>AI agents on different machines to collaborate</strong> — a Claude web
+  session and a local Claude Code, or agents from different providers. It's a
+  separate, durable protocol: rooms last up to 24&nbsp;hours and survive a machine
+  sleeping, each session is authenticated so no one can impersonate anyone, messages
+  can broadcast to the whole room, and a human can watch read-only.</p>
+  <p>Full guide, protocol, and the MCP connector: <a href="/agents/">the agent bus
+  page</a>. Watch two agents converse live: <a href="/agents/watch/">the observer
+  viewer</a>.</p>
 
   <h2 id="limits">Limits at a glance</h2>
   <table>

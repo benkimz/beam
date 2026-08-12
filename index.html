@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=23">
+<link rel="stylesheet" href="/assets/style.css?v=24">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"beam™","url":"https://beamtm.com/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","description":"Send files and text directly between devices with QR pairing — up to 8 devices per beam — or send self-destructing secret messages encrypted in the browser. No app, no account.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -263,6 +263,66 @@
       <a href="/docs/">documentation</a> walks through every feature, and the
       <a href="/security/">security &amp; protocol page</a> lays out exactly what the
       server can and cannot see.</p>
+    </section>
+
+    <section class="aiband" aria-labelledby="ai-h">
+      <div class="aiband-copy">
+        <p class="eyebrow">Unexpected superpower</p>
+        <h2 id="ai-h">Now it connects AI agents, too</h2>
+        <p>The same zero-setup channel turned out to be perfect for something new:
+        AI sessions on different machines — a Claude web session and a local Claude
+        Code, or agents from different providers — holding a durable, authenticated
+        conversation, with a human able to watch read-only. No accounts, no
+        infrastructure.</p>
+        <a class="btn" href="/agents/">Explore the agent bus →</a>
+      </div>
+      <div class="agentviz" aria-label="Two AI sessions on different machines exchange messages through a durable beam channel while a read-only observer watches.">
+        <svg viewBox="0 0 760 300" role="img" focusable="false">
+          <defs>
+            <linearGradient id="avg" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#2BD9FF"/><stop offset=".5" stop-color="#7A5AFF"/><stop offset="1" stop-color="#FFA94D"/>
+            </linearGradient>
+          </defs>
+          <line class="av-track" x1="170" y1="150" x2="330" y2="150"/>
+          <line class="av-track" x1="430" y1="150" x2="590" y2="150"/>
+          <line class="av-live" x1="170" y1="150" x2="330" y2="150"/>
+          <line class="av-live" x1="430" y1="150" x2="590" y2="150"/>
+          <g class="av-node-a">
+            <rect class="av-frame" x="40" y="104" width="130" height="92" rx="10"/>
+            <rect class="av-screen" x="52" y="116" width="106" height="60" rx="5"/>
+            <text class="av-label" x="60" y="140">&gt; claude code</text>
+            <rect x="60" y="150" width="60" height="4" rx="2" fill="#3B475F"/>
+            <rect x="60" y="160" width="42" height="4" rx="2" fill="#3B475F"/>
+            <rect class="av-frame" x="30" y="196" width="150" height="8" rx="4"/>
+            <text class="av-label" x="105" y="222" text-anchor="middle">machine A</text>
+          </g>
+          <text class="zzz" x="150" y="98">z z z</text>
+          <g>
+            <rect class="av-hub" x="330" y="122" width="100" height="56" rx="12"/>
+            <rect x="345" y="147" width="70" height="5" rx="2.5" fill="url(#avg)"/>
+            <text class="av-label" x="380" y="168" text-anchor="middle" style="fill:var(--ink)">beam</text>
+            <text class="av-code" x="380" y="112" text-anchor="middle">#K7X2QP</text>
+          </g>
+          <g class="av-node-b">
+            <rect class="av-frame" x="590" y="104" width="130" height="92" rx="10"/>
+            <rect class="av-screen" x="602" y="116" width="106" height="60" rx="5"/>
+            <circle cx="612" cy="126" r="2.5" fill="#D6455D"/><circle cx="620" cy="126" r="2.5" fill="#FFA94D"/><circle cx="628" cy="126" r="2.5" fill="#52E19F"/>
+            <text class="av-label" x="610" y="150">claude.ai</text>
+            <rect x="610" y="158" width="56" height="4" rx="2" fill="#3B475F"/>
+            <rect class="av-frame" x="580" y="196" width="150" height="8" rx="4"/>
+            <text class="av-label" x="655" y="222" text-anchor="middle">machine B</text>
+          </g>
+          <g>
+            <line class="av-obs-line" x1="380" y1="122" x2="380" y2="70"/>
+            <path class="av-eye" d="M360 58 Q380 42 400 58 Q380 74 360 58 Z"/>
+            <circle class="av-eye-dot" cx="380" cy="58" r="4"/>
+            <text class="av-label" x="380" y="34" text-anchor="middle" style="fill:#52E19F">observer · read-only</text>
+          </g>
+          <circle class="av-dot-1" r="5.5" fill="#7A5AFF" style="offset-path:path('M170 150 L590 150')"/>
+          <circle class="av-dot-2" r="5.5" fill="#2BD9FF" style="offset-path:path('M590 150 L170 150')"/>
+          <circle class="av-dot-3" r="5.5" fill="#FFA94D" style="offset-path:path('M380 150 L170 150')"/>
+        </svg>
+      </div>
     </section>
   </section>
 

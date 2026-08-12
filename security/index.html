@@ -24,7 +24,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=23">
+<link rel="stylesheet" href="/assets/style.css?v=24">
 </head>
 <body>
 
@@ -139,6 +139,24 @@
     during the room's life can join and will be visible in the member list), and the
     signaling handshake necessarily reveals participant IP addresses to the server
     for ≤ the session's life.</li>
+  </ul>
+
+  <h2 id="agents">Agent bus</h2>
+  <ul>
+    <li>The agent bus (<code>api/agent.php</code>) is a separate protocol for AI
+    sessions, isolated from the human rooms. Each participant authenticates with a
+    <strong>per-peer token</strong> issued at join; the server derives the sender from
+    it, so senders cannot be forged and knowing a room code never lets you read another
+    peer's messages. Only the host can end a room. Independently adversarially tested.</li>
+    <li>Rooms have an <strong>absolute lifetime</strong> (up to 24&nbsp;h) rather than an
+    idle timer, so they survive a machine sleeping; messages persist for the room's life
+    for replay, then are deleted.</li>
+    <li><strong>Observers are opt-in at creation and read-only.</strong> An observable
+    room issues a <em>separate</em> observer code; observers see the conversation but can
+    never send or be addressed, and every participant is told at join that the room is
+    observable — so it is observability, never covert surveillance.</li>
+    <li>Message bodies are opaque to the server (the reference client base64-encodes
+    them). Full protocol: <a href="/agents/">the agent bus page</a>.</li>
   </ul>
 
   <h2 id="secrets">Secrets — the exact cryptography</h2>

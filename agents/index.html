@@ -27,44 +27,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/style.css?v=23">
-<style>
-  /* cross-machine agent animation — two sessions, a durable beam channel between
-     them, messages both ways, and a read-only observer. Design language matches
-     beam's spectral system. */
-  .agentviz { width: 100%; max-width: 760px; margin: 8px 0 4px; }
-  .agentviz svg { width: 100%; height: auto; display: block; }
-  .av-frame { fill: var(--card); stroke: var(--line); stroke-width: 2; }
-  .av-screen { fill: #0C111B; stroke: #2A3550; stroke-width: 1.5; }
-  .av-label { font-family: "IBM Plex Mono", monospace; font-size: 12px; fill: var(--dim); }
-  .av-hub { fill: #101724; stroke: var(--violet); stroke-width: 1.5; }
-  .av-track { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 3 6; }
-  .av-live { stroke: var(--violet); stroke-width: 2; opacity: .5; }
-  .av-eye { fill: none; stroke: var(--signal); stroke-width: 1.6; }
-  .av-eye-dot { fill: var(--signal); }
-  .av-obs-line { stroke: var(--signal); stroke-width: 1.2; stroke-dasharray: 2 5; opacity: .5; }
-  .av-code { font-family: "IBM Plex Mono", monospace; font-size: 11px; fill: var(--copper, #FFA94D); letter-spacing: .12em; }
-  .av-node-a, .av-node-b { transform-box: fill-box; }
-  @media (prefers-reduced-motion: no-preference) {
-    .av-dot-1 { animation: av-a2b 9s ease-in-out infinite; }
-    .av-dot-2 { animation: av-b2a 9s ease-in-out infinite; }
-    .av-dot-3 { animation: av-catchup 9s ease-in-out infinite; }
-    .av-node-a { animation: av-sleep 9s ease-in-out infinite; }
-    .av-node-b { animation: av-recv 9s ease-in-out infinite; }
-    .av-eye-dot { animation: av-blink 9s ease-in-out infinite; }
-    .av-live { animation: av-pulse 9s ease-in-out infinite; }
-  }
-  @keyframes av-a2b { 0%{offset-distance:0%;opacity:0} 4%{opacity:1} 34%{offset-distance:100%;opacity:1} 40%,100%{offset-distance:100%;opacity:0} }
-  @keyframes av-b2a { 0%,42%{offset-distance:0%;opacity:0} 46%{opacity:1} 70%{offset-distance:100%;opacity:1} 74%,100%{offset-distance:100%;opacity:0} }
-  @keyframes av-catchup { 0%,78%{offset-distance:0%;opacity:0} 82%{opacity:1} 96%{offset-distance:100%;opacity:1} 100%{offset-distance:100%;opacity:0} }
-  @keyframes av-sleep { 0%,52%{opacity:1} 60%{opacity:.35} 72%{opacity:.35} 80%,100%{opacity:1} }
-  @keyframes av-recv { 0%,30%{opacity:1} 36%{opacity:1;filter:drop-shadow(0 0 6px var(--violet))} 44%,100%{opacity:1;filter:none} }
-  @keyframes av-blink { 0%,90%{opacity:1} 94%{opacity:.2} 98%,100%{opacity:1} }
-  @keyframes av-pulse { 0%,100%{opacity:.35} 50%{opacity:.75} }
-  .zzz { font-family: "IBM Plex Mono", monospace; font-size: 13px; fill: var(--dim); opacity: 0; }
-  @media (prefers-reduced-motion: no-preference) { .zzz { animation: av-zzz 9s ease-in-out infinite; } }
-  @keyframes av-zzz { 0%,56%{opacity:0} 62%{opacity:.9} 74%{opacity:.9} 80%,100%{opacity:0} }
-</style>
+<link rel="stylesheet" href="/assets/style.css?v=24">
 </head>
 <body>
 
@@ -122,7 +85,7 @@
       <g>
         <rect class="av-hub" x="330" y="122" width="100" height="56" rx="12"/>
         <rect x="345" y="147" width="70" height="5" rx="2.5" fill="url(#avg)"/>
-        <text class="av-label" x="380" y="168" text-anchor="middle" style="fill:var(--silk,#E8EDE6)">beam</text>
+        <text class="av-label" x="380" y="168" text-anchor="middle" style="fill:var(--ink)">beam</text>
         <text class="av-code" x="380" y="112" text-anchor="middle">#K7X2QP</text>
       </g>
 
@@ -142,7 +105,7 @@
         <line class="av-obs-line" x1="380" y1="122" x2="380" y2="70"/>
         <path class="av-eye" d="M360 58 Q380 42 400 58 Q380 74 360 58 Z"/>
         <circle class="av-eye-dot" cx="380" cy="58" r="4"/>
-        <text class="av-label" x="380" y="34" text-anchor="middle" style="fill:var(--signal)">observer · read-only</text>
+        <text class="av-label" x="380" y="34" text-anchor="middle" style="fill:#52E19F">observer · read-only</text>
       </g>
 
       <!-- travelling messages -->
