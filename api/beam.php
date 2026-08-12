@@ -37,8 +37,9 @@ switch ($action) {
         $db->prepare('DELETE FROM msgs WHERE code = ?')->execute([$code]);
         $db->prepare('INSERT INTO sessions (code, created, host_seen, guests, kind) VALUES (?, ?, ?, 0, ?)')
            ->execute([$code, $now, $now, $kind]);
+        $token = beam_peer_register($db, $code, 'h');
         beam_count($db, $kind === 'c' ? 'chat_created' : 'beam_created');
-        beam_json(['code' => $code, 'ttl' => SESSION_TTL, 'maxGuests' => MAX_GUESTS, 'kind' => $kind]);
+        beam_json(['code' => $code, 'token' => $token, 'ttl' => SESSION_TTL, 'maxGuests' => MAX_GUESTS, 'kind' => $kind]);
     }
 
     case 'join': {
@@ -58,18 +59,28 @@ switch ($action) {
         if ($st->rowCount() === 0) {
             beam_json(['error' => 'This beam is full — up to ' . MAX_GUESTS . ' devices can join.'], 409);
         }
-        $peer = 'g' . beam_new_code(4);
+        $peer = null;
+        for ($i = 0; $i < 8; $i++) {
+            $try = 'g' . beam_new_code(4);
+            $chk = $db->prepare('SELECT 1 FROM beam_peers WHERE code = ? AND peer = ?');
+            $chk->execute([$code, $try]);
+            if ($chk->fetchColumn() === false) { $peer = $try; break; }
+        }
+        if ($peer === null) {
+            beam_json(['error' => 'busy, try again'], 503);
+        }
+        $token = beam_peer_register($db, $code, $peer);
         $kind = $s['kind'] ?? 'b';
         beam_count($db, $kind === 'c' ? 'chat_joined' : 'beam_joined');
-        beam_json(['ok' => true, 'peer' => $peer, 'kind' => $kind]);
+        beam_json(['ok' => true, 'peer' => $peer, 'token' => $token, 'kind' => $kind]);
     }
 
     case 'signal': {
         $code = beam_valid_code($in['code'] ?? null);
-        $from = beam_valid_peer($in['from'] ?? null);
+        $peer = beam_valid_peer($in['peer'] ?? null);
         $to = beam_valid_peer($in['to'] ?? null);
         $body = $in['body'] ?? null;
-        if ($code === null || $from === null || $to === null
+        if ($code === null || $peer === null || $to === null
             || !is_string($body) || strlen($body) > SIGNAL_MAX_BYTES) {
             beam_json(['error' => 'bad request'], 400);
         }
@@ -77,8 +88,12 @@ switch ($action) {
         if ($s === null || (int)($s['ended'] ?? 0) === 1) {
             beam_json(['error' => 'expired'], 404);
         }
+        // authenticate: the sender is the token holder, never a client-asserted field
+        if (!beam_auth($db, $code, $peer, $in['token'] ?? null)) {
+            beam_json(['error' => 'unauthorized'], 401);
+        }
         $db->prepare('INSERT INTO msgs (code, sender, target, body, created) VALUES (?, ?, ?, ?, ?)')
-           ->execute([$code, $from, $to, $body, $now]);
+           ->execute([$code, $peer, $to, $body, $now]);
         beam_json(['ok' => true]);
     }
 
@@ -92,6 +107,9 @@ switch ($action) {
         $s = beam_session($db, $code);
         if ($s === null) {
             beam_json(['error' => 'expired'], 404);
+        }
+        if (!beam_auth($db, $code, $peer, $in['token'] ?? null)) {
+            beam_json(['error' => 'unauthorized'], 401);
         }
         $col = $peer === 'h' ? 'host_seen' : 'guest_seen';
         $db->prepare("UPDATE sessions SET $col = ? WHERE code = ?")->execute([$now, $code]);
@@ -107,8 +125,15 @@ switch ($action) {
 
     case 'end': {
         $code = beam_valid_code($in['code'] ?? null);
-        if ($code === null) {
+        $peer = beam_valid_peer($in['peer'] ?? null);
+        if ($code === null || $peer === null) {
             beam_json(['error' => 'bad request'], 400);
+        }
+        if (!beam_auth($db, $code, $peer, $in['token'] ?? null)) {
+            beam_json(['error' => 'unauthorized'], 401);
+        }
+        if ($peer !== 'h') {
+            beam_json(['error' => 'only the host can end'], 403);
         }
         $db->prepare('UPDATE sessions SET ended = 1 WHERE code = ?')->execute([$code]);
         @unlink(beam_data_dir() . "/relay/$code.bin");

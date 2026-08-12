@@ -51,6 +51,14 @@ function beam_db(): PDO {
         created INTEGER NOT NULL
     )');
     $db->exec('CREATE INDEX IF NOT EXISTS idx_msgs_code ON msgs (code, target, id)');
+    // per-peer auth tokens: knowing a room code no longer lets you read another
+    // peer's inbox or speak as them. One row per peer, storing only the hash.
+    $db->exec('CREATE TABLE IF NOT EXISTS beam_peers (
+        code TEXT NOT NULL,
+        peer TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        PRIMARY KEY (code, peer)
+    )');
     $db->exec('CREATE TABLE IF NOT EXISTS secrets (
         id TEXT PRIMARY KEY,
         ct TEXT NOT NULL,
@@ -90,6 +98,8 @@ function beam_cleanup(PDO $db): void {
     $db->prepare("DELETE FROM sessions WHERE kind = 'c' AND (created < ? OR (host_seen < ? AND guest_seen < ?))")
        ->execute([$now - CHAT_MAX_AGE, $now - CHAT_IDLE_TTL, $now - CHAT_IDLE_TTL]);
     $db->prepare('DELETE FROM secrets WHERE expires < ?')->execute([$now]);
+    // drop auth tokens for rooms that no longer exist
+    $db->exec('DELETE FROM beam_peers WHERE code NOT IN (SELECT code FROM sessions)');
     foreach (glob(beam_data_dir() . '/relay/*') ?: [] as $f) {
         if (@filemtime($f) < $now - SESSION_TTL) {
             @unlink($f);
@@ -133,6 +143,29 @@ function beam_valid_peer($p): ?string {
         return null;
     }
     return preg_match('/^(h|g[A-Z2-9]{4})$/', $p) === 1 ? $p : null;
+}
+
+function beam_peer_token(): string {
+    return rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
+}
+
+// Register a peer's token (stores only the hash). Returns the plaintext token.
+function beam_peer_register(PDO $db, string $code, string $peer): string {
+    $token = beam_peer_token();
+    $db->prepare('INSERT OR REPLACE INTO beam_peers (code, peer, token_hash) VALUES (?, ?, ?)')
+       ->execute([$code, $peer, hash('sha256', $token)]);
+    return $token;
+}
+
+// Constant-time check that (code, peer) presented a valid token.
+function beam_auth(PDO $db, string $code, string $peer, $token): bool {
+    if (!is_string($token) || $token === '') {
+        return false;
+    }
+    $st = $db->prepare('SELECT token_hash FROM beam_peers WHERE code = ? AND peer = ?');
+    $st->execute([$code, $peer]);
+    $h = $st->fetchColumn();
+    return $h !== false && hash_equals($h, hash('sha256', $token));
 }
 
 function beam_session(PDO $db, string $code): ?array {

@@ -71,11 +71,13 @@
     host, <code>gXXXX</code> for guests); every message is addressed to exactly one peer.
     These messages carry only WebRTC handshake material (SDP offers/answers, ICE
     candidates), plus small control notices (text-via-relay, file-waiting, goodbye).</li>
-    <li>Known limitation, stated plainly: peers within a session are not
-    authenticated to each other. Anyone who has the code during the 15-minute window
-    is a legitimate participant by definition, and a participant could forge the
-    <code>from</code> field of a signaling message. The code is the security boundary;
-    treat it like a key.</li>
+    <li>Each participant is authenticated by a <strong>per-peer token</strong> issued at
+    join and required on every message and poll. The server derives the sender from the
+    token, so there is no client-asserted sender field to forge, and knowing a room's code
+    lets you <em>join</em> but never read another peer's messages or speak as them. Only
+    the host can end a session. The room code remains the <em>join</em> capability — treat
+    it like an invite: anyone you give it to can enter the room (up to the 8-device cap)
+    until it expires.</li>
   </ul>
 
   <h2 id="webrtc">WebRTC configuration — exactly</h2>

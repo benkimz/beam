@@ -11,6 +11,7 @@
 
   const state = {
     code: null,
+    token: null,         // per-peer auth token from create/join
     mode: "beam",        // 'beam' | 'chat'
     nick: "",
     roster: [],          // [[peerId, nick], ...] — host-authored, P2P only
@@ -140,7 +141,7 @@
 
   async function sendSignal(to, obj) {
     await api("beam.php", {
-      action: "signal", code: state.code, from: state.peer, to,
+      action: "signal", code: state.code, peer: state.peer, token: state.token, to,
       body: JSON.stringify(obj),
     });
   }
@@ -157,7 +158,7 @@
       if (!state.code) return;
       try {
         const d = await api("beam.php", {
-          action: "poll", code: state.code, peer: state.peer, after: state.lastMsgId,
+          action: "poll", code: state.code, peer: state.peer, token: state.token, after: state.lastMsgId,
         });
         if (isHost() && d.guests > 0 && !anyOpen() && !state.relayMode
             && !$("view-host").hidden) {
@@ -400,6 +401,7 @@
     try {
       const d = await api("beam.php", { action: "create" });
       state.code = d.code;
+      state.token = d.token;
       state.peer = "h";
       state.lastMsgId = 0;
       $("code-text").textContent = d.code;
@@ -426,6 +428,7 @@
     try {
       const d = await api("beam.php", { action: "join", code });
       state.code = code;
+      state.token = d.token;
       state.peer = d.peer;
       state.mode = d.kind === "c" ? "chat" : "beam";
       state.lastMsgId = 0;
@@ -483,6 +486,7 @@
     clearTimeout(state.fallbackTimer);
     const wasHost = isHost();
     const code = state.code;
+    const token = state.token;
     for (const [, p] of state.peers) {
       clearTimeout(p.lossTimer);
       p.pc.onconnectionstatechange = null;
@@ -492,12 +496,12 @@
       try { p.pc.close(); } catch {}
     }
     if (wasHost && code) {
-      api("beam.php", { action: "end", code }).catch(() => {});
+      api("beam.php", { action: "end", code, peer: "h", token }).catch(() => {});
     }
     state.peers = new Map();
     state.incomingBy = new Map();
     Object.assign(state, {
-      code: null, peer: null, relayMode: false, lastMsgId: 0,
+      code: null, token: null, peer: null, relayMode: false, lastMsgId: 0,
       sending: false, sendQueue: [],
     });
     document.body.classList.remove("beaming");
@@ -525,6 +529,7 @@
     try {
       const d = await api("beam.php", { action: "create", kind: "c" });
       state.code = d.code;
+      state.token = d.token;
       state.mode = "chat";
       state.peer = "h";
       state.lastMsgId = 0;
