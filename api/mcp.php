@@ -42,6 +42,11 @@ if (random_int(0, 9) === 0) {
 
 $sid = $_SERVER['HTTP_MCP_SESSION_ID'] ?? '';
 
+// Derive the agent endpoint from THIS request's host, so self-hosted installs
+// (and the test server) proxy to their own agent.php, not beamtm.com.
+$__scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+define('BEAM_AGENT_URL', $__scheme . '://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . '/api/agent.php');
+
 $raw = file_get_contents('php://input');
 $parsed = json_decode($raw === false ? '' : $raw, true);
 if (!is_array($parsed)) {
@@ -65,7 +70,7 @@ function tool_text($text, bool $isError = false): array {
 
 // Call agent.php internally over loopback and return [status, decoded].
 function agent_call(array $payload): array {
-    $ch = curl_init('https://beamtm.com/api/agent.php');
+    $ch = curl_init(BEAM_AGENT_URL);
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],

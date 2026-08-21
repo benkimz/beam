@@ -6,6 +6,8 @@ Live at **[beamtm.com](https://beamtm.com)** ·
 [Documentation](https://beamtm.com/docs/) ·
 [Security & protocol](https://beamtm.com/security/)
 
+[![CI](https://github.com/benkimz/beam/actions/workflows/ci.yml/badge.svg)](https://github.com/benkimz/beam/actions/workflows/ci.yml)
+
 ![beam — send anything to any device](og.png)
 
 beam does a few things, all with zero setup:
@@ -118,6 +120,25 @@ There is no build step — edit the files, refresh, done. Two things to know:
 - Static assets are served with 24-hour caching: bump the `?v=N` query on the
   `style.css` / `app.js` references in `index.html` whenever you change them.
 - The social preview image is generated: `python tools/og_gen.py` (needs Pillow).
+
+## Tests & CI
+
+The tests in [`tests/`](tests/) are **black-box** — they hit the real HTTP API, so
+they're language-agnostic and verify the exact contract clients depend on: per-peer
+token auth on classic rooms, the agent bus's security properties (no impersonation,
+no inbox theft, read-only observers), one-time secrets, and the MCP bridge. Run them
+against a local instance:
+
+```bash
+# requires PHP 8.1+ with pdo_sqlite, and Node 18+
+PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 -t . &
+node --test tests/
+```
+
+Point them at any running instance with `BEAM_BASE` (e.g.
+`BEAM_BASE=https://beamtm.com node --test tests/`). Every push runs the full suite
+on GitHub Actions — PHP lint, the black-box tests against a throwaway server, and
+JS/JSON validation — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Credits
 
