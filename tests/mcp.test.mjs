@@ -2,10 +2,10 @@
 // agent bus. Verifies the protocol handshake and a real tool round-trip.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BASE } from './helpers.mjs';
+import { BASE, PROXY_HEADERS } from './helpers.mjs';
 
 async function rpc(body, sid) {
-  const headers = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...PROXY_HEADERS };
   if (sid) headers['Mcp-Session-Id'] = sid;
   const r = await fetch(`${BASE}/api/mcp.php`, { method: 'POST', headers, body: JSON.stringify(body) });
   let d = {};
@@ -14,7 +14,7 @@ async function rpc(body, sid) {
 }
 
 test('GET is rejected 405 (Streamable HTTP, no server-initiated stream)', async () => {
-  const r = await fetch(`${BASE}/api/mcp.php`);
+  const r = await fetch(`${BASE}/api/mcp.php`, { headers: PROXY_HEADERS });
   assert.equal(r.status, 405);
 });
 

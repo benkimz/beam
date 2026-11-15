@@ -42,10 +42,20 @@ if (random_int(0, 9) === 0) {
 
 $sid = $_SERVER['HTTP_MCP_SESSION_ID'] ?? '';
 
-// Derive the agent endpoint from THIS request's host, so self-hosted installs
-// (and the test server) proxy to their own agent.php, not beamtm.com.
-$__scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-define('BEAM_AGENT_URL', $__scheme . '://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . '/api/agent.php');
+// BEAM_AGENT_URL from the environment (the Docker image sets a loopback URL, so the
+// call never leaves the container); the original Host and the proxy's scheme are
+// forwarded so agent.php treats it like the original request. Otherwise derive the
+// agent endpoint from THIS request's host, so self-hosted installs (and the test
+// server) proxy to their own agent.php, not beamtm.com.
+$__envAgent = getenv('BEAM_AGENT_URL');
+if (is_string($__envAgent) && $__envAgent !== '') {
+    define('BEAM_AGENT_URL', $__envAgent);
+    define('BEAM_AGENT_HEADERS', ['Host: ' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1'), 'X-Forwarded-Proto: https']);
+} else {
+    $__scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    define('BEAM_AGENT_URL', $__scheme . '://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . '/api/agent.php');
+    define('BEAM_AGENT_HEADERS', []);
+}
 
 $raw = file_get_contents('php://input');
 $parsed = json_decode($raw === false ? '' : $raw, true);
@@ -73,7 +83,7 @@ function agent_call(array $payload): array {
     $ch = curl_init(BEAM_AGENT_URL);
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], BEAM_AGENT_HEADERS),
         CURLOPT_POSTFIELDS => json_encode($payload),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 25,

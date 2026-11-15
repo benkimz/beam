@@ -64,7 +64,9 @@ switch ($action) {
             $try = 'g' . beam_new_code(4);
             $chk = $db->prepare('SELECT 1 FROM beam_peers WHERE code = ? AND peer = ?');
             $chk->execute([$code, $try]);
-            if ($chk->fetchColumn() === false) { $peer = $try; break; }
+            $taken = $chk->fetchColumn() !== false;
+            $chk->closeCursor(); // close reads before the token INSERT (WAL snapshot)
+            if (!$taken) { $peer = $try; break; }
         }
         if ($peer === null) {
             beam_json(['error' => 'busy, try again'], 503);

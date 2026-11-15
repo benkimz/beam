@@ -1,0 +1,25 @@
+# Allowlist: only what the site serves, plus docker/ (build input, removed from
+# the docroot in the Dockerfile). Anything new must be added here to ship.
+*
+!.htaccess
+!.well-known
+!LICENSE
+!README.md
+!agent
+agent/mcp/node_modules
+agent/_live-creds.json
+!agents
+!api
+!apple-touch-icon.png
+!assets
+!docs
+!favicon.ico
+!favicon.svg
+!index.html
+!llms.txt
+!og.png
+!robots.txt
+!security
+!security.txt
+!sitemap.xml
+!docker

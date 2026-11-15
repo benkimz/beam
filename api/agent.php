@@ -177,14 +177,20 @@ switch ($action) {
 
         $c = $db->prepare('SELECT COUNT(*) FROM agent_peers WHERE code = ? AND role = ?');
         $c->execute([$roomCode, $role]);
-        if ((int)$c->fetchColumn() >= $cap) agent_err('room_full', 409);
+        $n = (int)$c->fetchColumn();
+        // Close reads before writing: an open cursor pins an old WAL snapshot and the
+        // INSERT below then fails at once with "database is locked" under concurrency.
+        $c->closeCursor();
+        if ($n >= $cap) agent_err('room_full', 409);
 
         $peer = null;
         for ($i = 0; $i < 10; $i++) {
             $try = $prefix . beam_new_code(4);
             $chk = $db->prepare('SELECT 1 FROM agent_peers WHERE code = ? AND peer = ?');
             $chk->execute([$roomCode, $try]);
-            if ($chk->fetchColumn() === false) { $peer = $try; break; }
+            $taken = $chk->fetchColumn() !== false;
+            $chk->closeCursor();
+            if (!$taken) { $peer = $try; break; }
         }
         if ($peer === null) agent_err('busy', 503);
 
@@ -221,6 +227,7 @@ switch ($action) {
             $chk = $db->prepare('SELECT role FROM agent_peers WHERE code = ? AND peer = ?');
             $chk->execute([$roomCode, $to]);
             $trole = $chk->fetchColumn();
+            $chk->closeCursor(); // before the INSERT below (see join)
             if ($trole === false) agent_err('unknown_peer', 404);
             if ($trole === 'observer') agent_err('not_permitted', 403); // observers are not addressable
         }

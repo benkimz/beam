@@ -14,7 +14,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.3'
           extensions: pdo_sqlite, sqlite3, curl
 
       - name: Set up Node
@@ -47,3 +47,59 @@ jobs:
         env:
           BEAM_BASE: http://127.0.0.1:8080
         run: node --test tests/
+
+  # The production image (Dockerfile): Apache + mod_php behind a TLS-terminating
+  # proxy. Requests carry X-Forwarded-Proto: https, as the proxy would send.
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      BEAM_BASE: http://127.0.0.1:8081
+      BEAM_FORWARDED_PROTO: https
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install MCP server deps
+        working-directory: agent/mcp
+        run: npm ci
+
+      - name: Build image
+        run: docker build -t beam:ci .
+
+      - name: Start container
+        run: |
+          # Run as production does: read-only root, tmpfs /tmp and /run, uid 33, no caps, 256 MB.
+          docker run -d --name beam -p 127.0.0.1:8081:8080 \
+            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL --memory 256m beam:ci
+          echo "waiting for container..."
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null -X POST http://127.0.0.1:8081/api/beam.php \
+                 -H 'X-Forwarded-Proto: https' \
+                 -H 'Content-Type: application/json' -d '{"action":"create"}'; then
+              echo "up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "container failed to start"; docker logs beam; exit 1
+
+      - name: Proxy and image tests (PHP executed, no redirect loop, mcp loopback, hardening)
+        env:
+          BEAM_CONTAINER: beam
+        run: node --test tests/proxy.test.mjs tests/image.test.mjs tests/mcp.test.mjs
+
+      - name: Run test suite against the container
+        run: node --test tests/
+
+      - name: Nothing written outside the data volume and tmpfs
+        run: |
+          changed=$(docker diff beam)
+          echo "$changed"
+          test -z "$changed"
+
+      - name: Container logs
+        if: always()
+        run: docker logs beam

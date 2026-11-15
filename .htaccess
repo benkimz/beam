@@ -8,7 +8,9 @@
 Options -Indexes
 
 RewriteEngine On
+# Behind a TLS-terminating proxy %{HTTPS} is off; trust its X-Forwarded-Proto.
 RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !=https
 RewriteRule ^ https://beamtm.com%{REQUEST_URI} [L,R=301]
 RewriteCond %{HTTP_HOST} ^www\.beamtm\.com$ [NC]
 RewriteRule ^ https://beamtm.com%{REQUEST_URI} [L,R=301]
