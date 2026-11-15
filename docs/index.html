@@ -76,8 +76,9 @@
   ending the beam on the host device closes it for everyone immediately.</p>
 
   <h3 id="relay">When devices can't connect directly</h3>
-  <p>Some networks (strict offices, some mobile carriers) block direct connections.
-  After ~15 seconds beam falls back to a <strong>relay mode</strong>, clearly labeled in
+  <p>Some networks (strict offices, VPNs, some mobile carriers) block direct connections.
+  beam first tries an encrypted relay (Cloudflare TURN) that passes the already-encrypted
+  connection along without being able to read it. If even that fails, after ~15 seconds beam falls back to a <strong>relay mode</strong>, clearly labeled in
   the UI: files up to 7&nbsp;MB pass through the server, are deleted on pickup, and
   never persist past the session. The privacy trade-off of this mode is documented
   honestly in <a href="/security/#relay">Security&nbsp;&amp;&nbsp;protocol</a>.</p>

@@ -12,6 +12,26 @@ const SIGNAL_MAX_BYTES = 65536;
 const RELAY_MAX_BYTES = 7340032;  // 7 MB relay fallback cap (host's post_max_size is 8M)
 const MAX_GUESTS = 8;
 
+// TURN relay fallback (Cloudflare Realtime TURN). Configured by the environment:
+// BEAM_TURN_ENABLED=1 plus BEAM_TURN_KEY_ID and BEAM_TURN_API_TOKEN; anything else
+// means STUN only. The API token is only ever sent to Cloudflare: never stored,
+// logged or returned. BEAM_TURN_API_BASE overrides the API base (tests only).
+const TURN_API_BASE = 'https://rtc.live.cloudflare.com/v1';
+const TURN_TTL = 3600;              // credential lifetime, seconds (beams last 15 min; chat refreshes)
+const TURN_CONNECT_TIMEOUT = 3;     // seconds
+const TURN_TOTAL_TIMEOUT = 5;       // seconds
+const TURN_PEER_INTERVAL = 30;      // at most one mint per peer per 30 s
+// Mints per session. A beam is at most 9 devices (host + 8 guests) and each device
+// mints once, so 20 leaves room for rejoins. A chat room (also up to 9 devices) can
+// live 12 h and every device refreshes hourly: 9 x 12 = 108, plus rejoins.
+const TURN_MAX_MINTS_BEAM = 20;
+const TURN_MAX_MINTS_CHAT = 150;
+const TURN_MAX_MINTS_DAY = 20000;   // site-wide ceiling per UTC day (sessions are free to create)
+const STUN_SERVERS = [
+    ['urls' => 'stun:stun.l.google.com:19302'],
+    ['urls' => 'stun:stun1.l.google.com:19302'],
+];
+
 function beam_data_dir(): string {
     $dir = dirname(__DIR__, 2) . '/beamtm_data';
     if (!is_dir($dir)) {
@@ -42,6 +62,7 @@ function beam_db(): PDO {
     try { $db->exec('ALTER TABLE sessions ADD COLUMN guests INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     try { $db->exec('ALTER TABLE sessions ADD COLUMN ended INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     try { $db->exec("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'b'"); } catch (Throwable $e) {}
+    try { $db->exec('ALTER TABLE sessions ADD COLUMN turn_mints INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     $db->exec('CREATE TABLE IF NOT EXISTS msgs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL,
@@ -57,8 +78,10 @@ function beam_db(): PDO {
         code TEXT NOT NULL,
         peer TEXT NOT NULL,
         token_hash TEXT NOT NULL,
+        turn_at INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (code, peer)
     )');
+    try { $db->exec('ALTER TABLE beam_peers ADD COLUMN turn_at INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     $db->exec('CREATE TABLE IF NOT EXISTS secrets (
         id TEXT PRIMARY KEY,
         ct TEXT NOT NULL,
@@ -185,4 +208,120 @@ function beam_session(PDO $db, string $code): ?array {
         $alive = (int)$row['created'] >= $now - SESSION_TTL;
     }
     return $alive ? $row : null;
+}
+
+// ---------- TURN relay credentials ----------
+
+function beam_stun_only(): array {
+    return ['iceServers' => STUN_SERVERS, 'ttl' => 0, 'relay' => false];
+}
+
+// ICE servers for an authenticated peer of a live session: STUN first, then TURN
+// credentials minted by Cloudflare when the relay is enabled and within the limits.
+// Every failure path degrades to STUN only; this never throws.
+function beam_turn_ice(PDO $db, array $session, string $peer): array {
+    // On only when exactly "1". compose env_file passes unset values as '', so an
+    // empty or whitespace-only key or token counts as unset: STUN only, no call out.
+    if (getenv('BEAM_TURN_ENABLED') !== '1') {
+        return beam_stun_only();
+    }
+    $keyId = trim((string) getenv('BEAM_TURN_KEY_ID'));
+    $apiToken = trim((string) getenv('BEAM_TURN_API_TOKEN'));
+    if (preg_match('/^[A-Za-z0-9_-]{1,128}$/', $keyId) !== 1
+        || preg_match('/^[\x21-\x7e]{1,512}$/', $apiToken) !== 1) {
+        return beam_stun_only();
+    }
+    $base = getenv('BEAM_TURN_API_BASE');
+    $base = is_string($base) && preg_match('#^https?://#', $base) === 1 ? rtrim($base, '/') : TURN_API_BASE;
+    $code = (string) $session['code'];
+    $max = ($session['kind'] ?? 'b') === 'c' ? TURN_MAX_MINTS_CHAT : TURN_MAX_MINTS_BEAM;
+    $now = time();
+    try {
+        $st = $db->prepare("SELECT n FROM stats WHERE day = ? AND metric = 'turn_minted'");
+        $st->execute([gmdate('Y-m-d')]);
+        $today = (int) $st->fetchColumn();
+        $st->closeCursor();
+        if ($today >= TURN_MAX_MINTS_DAY) {
+            return beam_stun_only();
+        }
+        // atomic claims: this peer's 30 s window, then a slot in the session's budget
+        $st = $db->prepare('UPDATE beam_peers SET turn_at = ? WHERE code = ? AND peer = ? AND turn_at <= ?');
+        $st->execute([$now, $code, $peer, $now - TURN_PEER_INTERVAL]);
+        if ($st->rowCount() === 0) {
+            return beam_stun_only();
+        }
+        $st = $db->prepare('UPDATE sessions SET turn_mints = turn_mints + 1 WHERE code = ? AND turn_mints < ?');
+        $st->execute([$code, $max]);
+        if ($st->rowCount() === 0) {
+            return beam_stun_only();
+        }
+    } catch (Throwable $e) {
+        error_log('beam turn: rate-limit check failed');
+        return beam_stun_only();
+    }
+    beam_count($db, 'turn_minted');
+
+    $turn = beam_turn_generate($base, $keyId, $apiToken);
+    if ($turn === null) {
+        return beam_stun_only();
+    }
+    return ['iceServers' => array_merge(STUN_SERVERS, $turn), 'ttl' => TURN_TTL, 'relay' => true];
+}
+
+// POST {base}/turn/keys/{key id}/credentials/generate-ice-servers with {"ttl": N}.
+// Returns only the TURN entries (urls + username + credential), or null on failure.
+// Error logs carry a curl errno or HTTP status only: never the URL, token or body.
+function beam_turn_generate(string $base, string $keyId, string $apiToken): ?array {
+    if (!function_exists('curl_init')) {
+        error_log('beam turn: curl unavailable');
+        return null;
+    }
+    $ch = curl_init($base . '/turn/keys/' . rawurlencode($keyId) . '/credentials/generate-ice-servers');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode(['ttl' => TURN_TTL]),
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $apiToken, 'Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => TURN_CONNECT_TIMEOUT,
+        CURLOPT_TIMEOUT => TURN_TOTAL_TIMEOUT,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+    ]);
+    $raw = curl_exec($ch);
+    $errno = curl_errno($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($raw === false || $errno !== 0) {
+        error_log("beam turn: request failed (curl $errno)");
+        return null;
+    }
+    if ($status < 200 || $status > 299) {
+        error_log("beam turn: request failed (http $status)");
+        return null;
+    }
+    $d = json_decode((string) $raw, true);
+    $servers = is_array($d) && is_array($d['iceServers'] ?? null) ? $d['iceServers'] : [];
+    $out = [];
+    foreach ($servers as $s) {
+        if (!is_array($s) || !is_string($s['username'] ?? null) || !is_string($s['credential'] ?? null)) {
+            continue;
+        }
+        $urls = [];
+        foreach ((array) ($s['urls'] ?? []) as $u) {
+            // TURN only (we list our own STUN); port 53 is blocked by browsers and only times out
+            if (is_string($u)
+                && preg_match('#^turns?:[A-Za-z0-9.\-]+:(\d+)(\?transport=(udp|tcp))?$#', $u, $m) === 1
+                && $m[1] !== '53') {
+                $urls[] = $u;
+            }
+        }
+        if ($urls) {
+            $out[] = ['urls' => $urls, 'username' => $s['username'], 'credential' => $s['credential']];
+        }
+    }
+    if (!$out) {
+        error_log('beam turn: unexpected response');
+        return null;
+    }
+    return $out;
 }

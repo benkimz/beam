@@ -125,6 +125,24 @@ switch ($action) {
         ]);
     }
 
+    case 'ice': {
+        // ICE servers for this peer's RTCPeerConnection: STUN, plus short-lived TURN
+        // relay credentials when configured. Failures degrade to STUN only, never 5xx.
+        $code = beam_valid_code($in['code'] ?? null);
+        $peer = beam_valid_peer($in['peer'] ?? null);
+        if ($code === null || $peer === null) {
+            beam_json(['error' => 'bad request'], 400);
+        }
+        $s = beam_session($db, $code);
+        if ($s === null || (int)($s['ended'] ?? 0) === 1) {
+            beam_json(['error' => 'expired'], 404);
+        }
+        if (!beam_auth($db, $code, $peer, $in['token'] ?? null)) {
+            beam_json(['error' => 'unauthorized'], 401);
+        }
+        beam_json(beam_turn_ice($db, $s, $peer));
+    }
+
     case 'end': {
         $code = beam_valid_code($in['code'] ?? null);
         $peer = beam_valid_peer($in['peer'] ?? null);

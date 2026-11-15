@@ -10,7 +10,7 @@
     "/beam.php": {
       "post": {
         "summary": "Beam session signaling",
-        "description": "Single endpoint, dispatched on `action`: `create` a session (returns 6-char code), `join` a session (returns your peer id, e.g. gK4M2), `signal` (send a message addressed to another peer id; `h` is the host), `poll` (fetch messages addressed to you with id greater than `after`). Sessions expire 15 minutes after creation.",
+        "description": "Single endpoint, dispatched on `action`: `create` a session (returns 6-char code), `join` a session (returns your peer id, e.g. gK4M2), `signal` (send a message addressed to another peer id; `h` is the host), `poll` (fetch messages addressed to you with id greater than `after`), `end` (host only), `ice` (ICE servers for your RTCPeerConnection: STUN, plus short-lived TURN relay credentials when the server has a relay configured; needs `peer` and `token`). Sessions expire 15 minutes after creation.",
         "requestBody": {
           "required": true,
           "content": {
@@ -19,7 +19,7 @@
                 "type": "object",
                 "required": ["action"],
                 "properties": {
-                  "action": { "type": "string", "enum": ["create", "join", "signal", "poll"] },
+                  "action": { "type": "string", "enum": ["create", "join", "signal", "poll", "end", "ice"] },
                   "code": { "type": "string", "pattern": "^[A-Z2-9]{6}$" },
                   "from": { "type": "string", "description": "signal only: your peer id" },
                   "to": { "type": "string", "description": "signal only: recipient peer id ('h' = host)" },
@@ -32,7 +32,7 @@
           }
         },
         "responses": {
-          "200": { "description": "create: {code, ttl, maxGuests} · join: {ok, peer} · signal: {ok} · poll: {msgs: [{id, sender, body}], guests}" },
+          "200": { "description": "create: {code, ttl, maxGuests} · join: {ok, peer} · signal: {ok} · poll: {msgs: [{id, sender, body}], guests} · ice: {iceServers, ttl, relay}" },
           "404": { "description": "Unknown or expired code" },
           "409": { "description": "join: beam is full (8 guests)" }
         }

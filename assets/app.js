@@ -194,7 +194,8 @@
   async function handleSignal(from, msg) {
     try {
       if (msg.type === "offer" && isHost()) {
-        const p = createPeerFor(from, false);
+        const p = await createPeerFor(from, false);
+        if (!p) return;
         await p.pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
         await flushIce(from);
         const ans = await p.pc.createAnswer();
@@ -238,15 +239,63 @@
     }
   }
 
-  function createPeerFor(remoteId, initiator) {
+  // ICE servers come from beam.php `ice`: STUN, plus short-lived TURN relay
+  // credentials when the server has a relay configured. Cached per session; on any
+  // failure (or after ~2 s) we use STUN only. ?relay=1 forces the relay (debug).
+  const FORCE_RELAY = new URLSearchParams(location.search).get("relay") === "1";
+  const ice = { code: null, result: null, until: 0, pending: null, refreshTimer: null };
+
+  function getIce() {
+    const code = state.code;
+    if (ice.code === code && ice.result && Date.now() < ice.until) return Promise.resolve(ice.result);
+    if (ice.code === code && ice.pending) return ice.pending;
+    resetIce();
+    ice.code = code;
+    const req = { action: "ice", code, peer: state.peer, token: state.token };
+    const pending = BeamIce.load(() => api("beam.php", req), 2000).then((r) => {
+      if (ice.pending === pending) {
+        ice.result = r;
+        ice.until = Date.now() + r.cacheMs;
+        ice.pending = null;
+        if (r.relay) ice.refreshTimer = setTimeout(refreshIce, r.cacheMs);
+      }
+      return r;
+    });
+    ice.pending = pending;
+    return pending;
+  }
+
+  // Long chat rooms outlive the credentials: fetch fresh ones and hand them to every
+  // open connection before the old ones expire.
+  async function refreshIce(tries = 0) {
+    if (!state.code || ice.code !== state.code) return;
+    ice.until = 0;
+    const r = await getIce();
+    if (ice.code !== state.code) return;
+    if (!r.relay) {
+      // no fresh credentials this time (server busy or relay switched off): retry a few times
+      if (tries < 3) ice.refreshTimer = setTimeout(() => refreshIce(tries + 1), 60000);
+      return;
+    }
+    for (const [, p] of state.peers) {
+      try { p.pc.setConfiguration({ ...p.pc.getConfiguration(), iceServers: r.iceServers }); } catch {}
+    }
+  }
+
+  function resetIce() {
+    clearTimeout(ice.refreshTimer);
+    Object.assign(ice, { code: null, result: null, until: 0, pending: null, refreshTimer: null });
+  }
+
+  async function createPeerFor(remoteId, initiator) {
     let p = state.peers.get(remoteId);
     if (p) return p;
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-      ],
-    });
+    const code = state.code;
+    const iceResult = await getIce();
+    if (state.code !== code) return null; // left this beam while waiting
+    p = state.peers.get(remoteId);
+    if (p) return p;
+    const pc = new RTCPeerConnection(BeamIce.rtcConfig(iceResult, FORCE_RELAY));
     p = { pc, dc: null, open: false, pendingIce: [], lossTimer: null };
     state.peers.set(remoteId, p);
     pc.onicecandidate = (ev) => {
@@ -433,7 +482,8 @@
       state.mode = d.kind === "c" ? "chat" : "beam";
       state.lastMsgId = 0;
       history.replaceState(null, "", "/");
-      const p = createPeerFor("h", true);
+      const p = await createPeerFor("h", true);
+      if (!p) return;
       const offer = await p.pc.createOffer();
       await p.pc.setLocalDescription(offer);
       await sendSignal("h", { type: "offer", sdp: offer.sdp });
@@ -483,6 +533,7 @@
 
   function endBeam(msg) {
     stopPolling();
+    resetIce();
     clearTimeout(state.fallbackTimer);
     const wasHost = isHost();
     const code = state.code;
