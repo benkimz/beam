@@ -87,15 +87,20 @@
     STUN only helps devices discover their own public address; no traffic flows through it.</li>
     <li><strong>When no direct path exists, an encrypted relay carries the connection.</strong>
     Behind VPNs, tunnels and strict NATs, two devices sometimes cannot reach each other
-    directly. For that case each device also gets short-lived (at most one hour) credentials
-    for a TURN relay run by Cloudflare (Cloudflare Realtime TURN). The relay forwards the
+    directly. For that case each device also gets short-lived credentials (20 minutes for a
+    beam, one hour for a chat room, renewed while the room lasts) for a TURN relay run by
+    Cloudflare (Cloudflare Realtime TURN). The relay forwards the
     data channel's packets, which are already DTLS-encrypted end to end between the two
     browsers, so <strong>the relay cannot read your files, text or chat</strong> — it sees
     only encrypted bytes, their volume, and both devices' IP addresses. The beam server is
     not on this path at all and still never sees content. WebRTC prefers a direct path and
-    uses the relay only when there is none. Credentials are issued per participant
+    uses the relay only when there is none, and the page tells you when it is in use
+    ("Connected through an encrypted relay"). Credentials are issued per participant
     (<code>action: "ice"</code> in <code>api/beam.php</code>), only to authenticated peers of a
-    live session, and are rate-limited per session.</li>
+    live session, and are revoked when the host ends the session. Issuance is
+    rate-limited per participant, per session, per client IP and site-wide; the per-IP
+    limit stores only a keyed hash of the address (HMAC-SHA256 under a random key that
+    is replaced every day), never the address itself.</li>
     <li>Transfers use a single ordered <code>RTCDataChannel</code>. WebRTC data channels
     are always encrypted in transit (DTLS 1.2+, keys negotiated directly between the
     two browsers). Files are sent in 16&nbsp;KB chunks with backpressure
@@ -197,13 +202,17 @@
     <tr><td>Signaling messages</td><td>SDP / ICE (includes IPs), control notices</td><td>≤ 15 minutes</td></tr>
     <tr><td>Relay files</td><td>file bytes (cleartext), filename, size</td><td>until pickup; ≤ 15 minutes</td></tr>
     <tr><td>Secrets</td><td>ciphertext, random id, expiry</td><td>until read; ≤ chosen TTL (max 7 days)</td></tr>
+    <tr><td>TURN credential names</td><td>the random username of each relay credential issued in a session (not the password), so it can be revoked</td><td>until the session ends or expires</td></tr>
+    <tr><td>TURN rate limits</td><td>per-IP counters keyed by HMAC-SHA256(daily random key, IP) — no raw IPs; the key is deleted the next day</td><td>≤ 2 days</td></tr>
     <tr><td>Usage counters</td><td>one integer per metric per day (<code>page_view</code>, <code>beam_created</code>, <code>beam_joined</code>, <code>chat_created</code>, <code>chat_joined</code>, <code>secret_created</code>, <code>secret_read</code>, <code>relay_upload</code>, <code>turn_minted</code>)</td><td>indefinite (aggregate only)</td></tr>
   </table>
   <p>Deletion is enforced by opportunistic garbage collection on incoming requests
   rather than a scheduled job, so precise deletion time can lag TTL by a short,
   traffic-dependent interval.</p>
-  <p><strong>Application logging:</strong> beam's own code writes no logs — no IPs, no
-  user agents, no per-user records of any kind. The usage counters above are the
+  <p><strong>Application logging:</strong> beam's own code keeps no logs about users — no
+  IPs, no user agents, no per-user records of any kind. The only lines it writes are
+  terse error lines (for example "relay credential request failed (http 500)") that
+  identify no one. The usage counters above are the
   entirety of application-level analytics; there are no cookies and no third-party
   scripts (fonts are the single external resource, loaded from Google Fonts).</p>
   <p><strong>Web-server logging:</strong> beam runs on ordinary shared hosting

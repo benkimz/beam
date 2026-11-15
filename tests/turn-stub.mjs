@@ -1,8 +1,9 @@
 // Stand-in for Cloudflare Realtime TURN's credential API, for the TURN tests.
 //   node tests/turn-stub.mjs            (API on :8787, control on :8788)
 // Point beam at it with BEAM_TURN_API_BASE=http://<host>:8787/v1. It answers
-//   POST /v1/turn/keys/<id>/credentials/generate-ice-servers
-// like Cloudflare does (201 + iceServers), but only for "Authorization: Bearer
+//   POST /v1/turn/keys/<id>/credentials/generate-ice-servers   (201 + iceServers)
+//   POST /v1/turn/keys/<id>/credentials/<username>/revoke      (204)
+// like Cloudflare does (each mint gets a fresh username), but only for "Authorization: Bearer
 // $BEAM_TURN_API_TOKEN". The control port lets tests switch failure modes:
 //   POST /mode {"mode": "ok" | "down" | "error" | "garbage" | "slow"}   GET /stats
 // "down" closes the API port (connection refused); the others keep it open.
@@ -27,14 +28,14 @@ const STUB_RESPONSE = {
         'turns:turn.cloudflare.com:5349?transport=tcp',
         'turns:turn.cloudflare.com:443?transport=tcp',
       ],
-      username: 'stub-user-0123456789abcdef',
+      username: 'stub-user-0',
       credential: 'stub-cred-fedcba9876543210',
     },
   ],
 };
 
 let mode = 'ok';
-const stats = { count: 0, last: null };
+const stats = { count: 0, last: null, ttls: [], revoked: [], okByKey: {} };
 const send = (res, status, body) => {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(typeof body === 'string' ? body : JSON.stringify(body));
@@ -47,6 +48,14 @@ const readBody = (req) => new Promise((resolve) => {
 
 const api = http.createServer(async (req, res) => {
   const body = await readBody(req);
+  const rv = /^\/v1\/turn\/keys\/([^/]+)\/credentials\/([^/]+)\/revoke$/.exec(req.url);
+  if (rv) {
+    if (req.method !== 'POST' || req.headers.authorization !== `Bearer ${TOKEN}`) return send(res, 401, { success: false });
+    if (mode !== 'ok') return send(res, 500, { success: false });
+    stats.revoked.push(decodeURIComponent(rv[2]));
+    res.writeHead(204);
+    return res.end();
+  }
   const m = /^\/v1\/turn\/keys\/([^/]+)\/credentials\/generate-ice-servers$/.exec(req.url);
   stats.count++;
   let ttl = null;
@@ -57,8 +66,12 @@ const api = http.createServer(async (req, res) => {
   if (!stats.last.authOk) return send(res, 401, { success: false, errors: [{ message: 'Authentication error' }] });
   if (mode === 'error') return send(res, 500, { success: false });
   if (mode === 'garbage') return send(res, 201, '<html>not json');
-  if (mode === 'slow') { setTimeout(() => send(res, 201, STUB_RESPONSE), 8000); return; }
-  send(res, 201, STUB_RESPONSE);
+  stats.ttls.push(ttl);
+  const out = structuredClone(STUB_RESPONSE);
+  out.iceServers[1].username = `stub-user-${stats.count}`;
+  if (mode === 'slow') { setTimeout(() => send(res, 201, out), 8000); return; }
+  stats.okByKey[m[1]] = (stats.okByKey[m[1]] || 0) + 1;
+  send(res, 201, out);
 });
 
 let apiUp = false;

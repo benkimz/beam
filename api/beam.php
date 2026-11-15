@@ -156,6 +156,7 @@ switch ($action) {
             beam_json(['error' => 'only the host can end'], 403);
         }
         $db->prepare('UPDATE sessions SET ended = 1 WHERE code = ?')->execute([$code]);
+        beam_turn_revoke($db, $code); // best effort; never fails `end`
         @unlink(beam_data_dir() . "/relay/$code.bin");
         @unlink(beam_data_dir() . "/relay/$code.json");
         beam_json(['ok' => true]);

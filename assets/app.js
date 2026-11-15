@@ -222,6 +222,8 @@
         receiveRelayFile(msg);
       } else if (msg.type === "bye") {
         byeFrom(from);
+      } else if (msg.type === "restart" && !isHost()) {
+        restartIce(from); // the host's relay credentials were refreshed
       }
     } catch (e) {
       console.warn("signal handling", e);
@@ -241,15 +243,16 @@
 
   // ICE servers come from beam.php `ice`: STUN, plus short-lived TURN relay
   // credentials when the server has a relay configured. Cached per session; on any
-  // failure (or after ~2 s) we use STUN only. ?relay=1 forces the relay (debug).
+  // failure (or after ~2 s) we use STUN only. ?relay=1 forces the relay, but only
+  // when the server allows debugging (it says so in the `ice` answer).
   const FORCE_RELAY = new URLSearchParams(location.search).get("relay") === "1";
-  const ice = { code: null, result: null, until: 0, pending: null, refreshTimer: null };
+  const ice = { code: null, result: null, until: 0, pending: null, refreshTimer: null, attempt: 0 };
 
   function getIce() {
     const code = state.code;
     if (ice.code === code && ice.result && Date.now() < ice.until) return Promise.resolve(ice.result);
     if (ice.code === code && ice.pending) return ice.pending;
-    resetIce();
+    if (ice.code !== code) resetIce();
     ice.code = code;
     const req = { action: "ice", code, peer: state.peer, token: state.token };
     const pending = BeamIce.load(() => api("beam.php", req), 2000).then((r) => {
@@ -257,7 +260,10 @@
         ice.result = r;
         ice.until = Date.now() + r.cacheMs;
         ice.pending = null;
-        if (r.relay) ice.refreshTimer = setTimeout(refreshIce, r.cacheMs);
+        if (r.relay) {
+          ice.attempt = 0;
+          scheduleIceRefresh(BeamIce.refreshDelay(r, 0));
+        }
       }
       return r;
     });
@@ -265,26 +271,80 @@
     return pending;
   }
 
-  // Long chat rooms outlive the credentials: fetch fresh ones and hand them to every
-  // open connection before the old ones expire.
-  async function refreshIce(tries = 0) {
-    if (!state.code || ice.code !== state.code) return;
+  function scheduleIceRefresh(ms) {
+    clearTimeout(ice.refreshTimer);
+    ice.refreshTimer = setTimeout(refreshIce, ms);
+  }
+
+  // Long chat rooms outlive the credentials (Cloudflare drops a relayed connection
+  // soon after they expire). Before that: fetch fresh ones, give them to every
+  // connection, and ICE-restart the connections whose own side is relayed, so a new
+  // allocation is made with the new credentials (offer/answer over `signal`).
+  async function refreshIce() {
+    const code = state.code;
+    if (!code || ice.code !== code) return;
     ice.until = 0;
     const r = await getIce();
-    if (ice.code !== state.code) return;
+    if (state.code !== code) return;
     if (!r.relay) {
-      // no fresh credentials this time (server busy or relay switched off): retry a few times
-      if (tries < 3) ice.refreshTimer = setTimeout(() => refreshIce(tries + 1), 60000);
+      const ms = BeamIce.refreshDelay(r, ice.attempt++);
+      console.warn("beam: relay credential refresh failed; retrying in " + Math.round(ms / 1000) + " s");
+      scheduleIceRefresh(ms);
       return;
     }
-    for (const [, p] of state.peers) {
+    const peers = [];
+    for (const [id, p] of state.peers) {
       try { p.pc.setConfiguration({ ...p.pc.getConfiguration(), iceServers: r.iceServers }); } catch {}
+      peers.push({ id, path: await pathOf(p.pc) });
     }
+    if (state.code !== code) return;
+    for (const step of BeamIce.refreshPlan(isHost(), peers)) {
+      if (step.action === "restart") restartIce(step.id);
+      else if (step.action === "ask") sendSignal(step.id, { type: "restart" }).catch(() => {});
+    }
+  }
+
+  // ICE restart toward the host. Guests always make the offers, so this is the same
+  // offer/answer exchange as joining, on the existing connection. Retries with backoff.
+  async function restartIce(remoteId, attempt = 0) {
+    const p = state.peers.get(remoteId);
+    if (!p || isHost() || !state.code) return;
+    const code = state.code;
+    try {
+      if (p.pc.signalingState !== "stable") throw new Error("negotiation in progress");
+      if (p.pc.restartIce) p.pc.restartIce();
+      const offer = await p.pc.createOffer({ iceRestart: true });
+      await p.pc.setLocalDescription(offer);
+      await sendSignal(remoteId, { type: "offer", sdp: offer.sdp });
+    } catch (e) {
+      if (state.code !== code || !state.peers.has(remoteId)) return;
+      const ms = Math.min(2000 * Math.pow(2, attempt), 60000);
+      console.warn("beam: ICE restart failed; retrying in " + ms / 1000 + " s", e);
+      setTimeout(() => restartIce(remoteId, attempt + 1), ms);
+    }
+  }
+
+  async function pathOf(pc) {
+    try {
+      const report = await pc.getStats();
+      return BeamIce.selectedPath([...report.values()]);
+    } catch {
+      return null;
+    }
+  }
+
+  // Status lines say "directly" by default; correct them when the relay is in use.
+  async function noteRelay(el, text) {
+    const p = state.peers.get("h");
+    if (!p) return;
+    const code = state.code;
+    const path = await pathOf(p.pc);
+    if (state.code === code && BeamIce.isRelayed(path)) el.textContent = text;
   }
 
   function resetIce() {
     clearTimeout(ice.refreshTimer);
-    Object.assign(ice, { code: null, result: null, until: 0, pending: null, refreshTimer: null });
+    Object.assign(ice, { code: null, result: null, until: 0, pending: null, refreshTimer: null, attempt: 0 });
   }
 
   async function createPeerFor(remoteId, initiator) {
@@ -441,6 +501,7 @@
           " · code " + state.code + " — more devices can join with it.";
       } else {
         st.textContent = "Connected directly — transfers are device-to-device.";
+        noteRelay(st, "Connected through an encrypted relay — transfers stay end-to-end encrypted.");
       }
       $("drop-hint").textContent = "any size · straight to the other device" + (n > 1 ? "s" : "");
     }
@@ -614,6 +675,7 @@
     } else {
       st.classList.add("live");
       st.textContent = "Connected — messages go device-to-device and are never stored.";
+      noteRelay(st, "Connected through an encrypted relay — messages stay end-to-end encrypted and are never stored.");
     }
     show("chat");
   }
