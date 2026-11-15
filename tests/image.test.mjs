@@ -79,3 +79,16 @@ test('health.php requests (probe key in the query) never reach the access log', 
   assert.ok(!lines.some((l) => l.includes('health.php')), 'no access-log line for health.php');
   assert.ok(!log.includes(`secret-${mark}`), 'probe key never logged');
 });
+
+test('OPcache is on, without timestamp checks', { skip }, () => {
+  // Same php.ini/conf.d as mod_php; enable_cli only so the CLI can report status.
+  const o = JSON.parse(sh(`php -d opcache.enable_cli=1 -r 'echo json_encode([
+    "enable" => ini_get("opcache.enable"), "validate" => ini_get("opcache.validate_timestamps"),
+    "mem" => ini_get("opcache.memory_consumption"), "status" => (opcache_get_status(false) ?: [])["opcache_enabled"] ?? false]);'`));
+  assert.equal(o.enable, '1');
+  assert.equal(o.validate, '0');
+  assert.equal(o.mem, '32');
+  assert.equal(o.status, true);
+  // and the extension is loaded into the running Apache (pid 1)
+  assert.match(sh('cat /proc/1/maps'), /opcache\.so/);
+});

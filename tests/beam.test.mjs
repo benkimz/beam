@@ -1,7 +1,7 @@
 // Classic beam/chat rooms (api/beam.php) — per-peer token auth.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { api } from './helpers.mjs';
+import { api, BASE, PROXY_HEADERS } from './helpers.mjs';
 
 test('create issues a room code and a host token', async () => {
   const { status, d } = await api('beam.php', { action: 'create' });
@@ -56,4 +56,8 @@ test('ADVERSARIAL: only the host can end a room', async () => {
   // ended room refuses further activity
   assert.equal((await api('beam.php', { action: 'join', code: room.code })).status, 404, 'join after end');
   assert.equal((await api('beam.php', { action: 'signal', code: room.code, peer: guest.peer, token: guest.token, to: 'h', body: 'x' })).status, 404, 'signal after end');
+  const relay = await fetch(`${BASE}/api/relay.php`, { method: 'POST', body: 'x',
+    headers: { ...PROXY_HEADERS, 'Content-Type': 'application/octet-stream', 'X-Beam-Code': room.code } });
+  assert.equal(relay.status, 404, 'relay upload after end');
+  assert.equal((await api('beam.php', { action: 'poll', code: room.code, peer: 'h', after: 0 })).status, 401, 'poll without token after end');
 });
