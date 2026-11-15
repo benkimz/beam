@@ -68,7 +68,7 @@ on faith.
   forwards packets that are already DTLS-encrypted between the browsers, so it cannot
   read them, and the beam server still never sees content. Short-lived credentials
   come from `beam.php` `action: "ice"` (20 min for beams, 1 h for chat, revoked on
-  end), rate-limited per peer, session, client IP (stored only as a daily-keyed HMAC)
+  end), rate-limited per peer, session, client IP (IPv6 per /64; stored only as a daily-keyed HMAC)
   and site-wide (constants in [api/_lib.php](api/_lib.php)). Set `BEAM_TURN_ENABLED=1`,
   `BEAM_TURN_KEY_ID` and `BEAM_TURN_API_TOKEN` to enable it; anything else, including
   empty values, means STUN only. Behind a proxy that overwrites `X-Forwarded-For`, set

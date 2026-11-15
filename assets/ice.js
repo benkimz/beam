@@ -108,8 +108,21 @@
     }));
   }
 
+  // Mint fresh credentials on refresh only if this device's side of some live
+  // connection is relayed; otherwise new connections fetch them on demand.
+  const needsRefresh = (peers) => peers.some((p) => !!p.path && p.path.local === "relay");
+
+  // Before an ICE-restart offer: from "stable" go ahead; if an earlier attempt left
+  // the connection in "have-local-offer" (its offer was lost or never answered),
+  // roll that offer back first; in any other state, wait and retry.
+  function restartStep(signalingState) {
+    if (signalingState === "stable") return "restart";
+    if (signalingState === "have-local-offer") return "rollback";
+    return "wait";
+  }
+
   root.BeamIce = {
     STUN_ONLY, FALLBACK_CACHE_MS, RETRY_MAX_MS, stunOnly, normalize, load, rtcConfig,
-    refreshDelay, selectedPath, isRelayed, refreshPlan,
+    refreshDelay, selectedPath, isRelayed, refreshPlan, needsRefresh, restartStep,
   };
 })(typeof window !== "undefined" ? window : globalThis);

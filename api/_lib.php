@@ -294,6 +294,24 @@ function beam_client_ip(): string {
     return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
 }
 
+// The rate-limit bucket for an address, as packed bytes: IPv4 as its 4 bytes
+// (IPv4-mapped IPv6 ::ffff:a.b.c.d too), IPv6 as its /64, since one host usually
+// controls a whole /64. Packing first means every text form of an address
+// (2001:db8::1, 2001:DB8:0::1, ...) lands in the same bucket.
+function beam_ip_bucket(string $ip): string {
+    $bin = @inet_pton($ip);
+    if (!is_string($bin)) {
+        return 'raw:' . $ip; // not an address (e.g. a test SAPI); keep it as-is
+    }
+    if (strlen($bin) === 16) {
+        if (strncmp($bin, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
+            return substr($bin, 12); // IPv4-mapped
+        }
+        return substr($bin, 0, 8) . str_repeat("\0", 8);
+    }
+    return $bin;
+}
+
 // Today's random HMAC key for IP hashing, kept in the data dir. A new key each UTC
 // day; older keys are deleted, so stored hashes can't be linked to IPs afterwards.
 function beam_ip_key(): ?string {
@@ -343,7 +361,7 @@ function beam_turn_ice(PDO $db, array $session, string $peer): array {
         error_log('beam turn: no IP hash key');
         return beam_stun_only();
     }
-    $iph = hash_hmac('sha256', beam_client_ip(), $key);
+    $iph = hash_hmac('sha256', beam_ip_bucket(beam_client_ip()), $key);
     $claims = beam_turn_reserve($db, $code, $peer, $chat ? TURN_MAX_MINTS_CHAT : TURN_MAX_MINTS_BEAM, $iph);
     if ($claims === null) {
         return beam_stun_only();

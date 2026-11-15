@@ -208,6 +208,43 @@ test('ice: at most 6 mints per client IP per 10 min (X-Forwarded-For trusted)', 
   assertRelay(await ice(h.code, peers[8].peer, peers[8].token), 'another IP is unaffected');
 });
 
+// A fresh IPv6 /64 (documentation range), unique within the run.
+function freshV6Prefix() {
+  for (;;) {
+    const p = `2001:db8:${randomInt(1, 65536).toString(16)}:${randomInt(1, 65536).toString(16)}`;
+    if (!used.has(p)) { used.add(p); return p; }
+  }
+}
+
+// Six mints from the `first` addresses, then a seventh from `last` must be refused.
+async function assertSharedBudget(first, last, why) {
+  const { h, peers } = await roomWithGuests(7);
+  for (let i = 0; i < 6; i++) {
+    assertRelay(await ice(h.code, peers[i].peer, peers[i].token, { ip: first[i] }), `${why}: mint ${i + 1} (${first[i]})`);
+  }
+  assertStunOnly(await ice(h.code, peers[6].peer, peers[6].token, { ip: last }), `${why}: 7th (${last}) shares the budget`);
+}
+
+test('ice: the per-IP budget is per IPv6 /64', { skip: needStub }, async () => {
+  await stub('ok');
+  const p = freshV6Prefix();
+  await assertSharedBudget([1, 2, 3, 0xabc, 0xffff, 9].map((n) => `${p}:${n.toString(16)}::1`), `${p}:dead:beef:1:2`, 'one /64');
+  // the neighbouring /64 is a different client
+  const { h, peers } = await roomWithGuests(0);
+  assertRelay(await ice(h.code, peers[0].peer, peers[0].token, { ip: `${freshV6Prefix()}::1` }), 'another /64');
+});
+
+test('ice: text forms of one address share a key; IPv4-mapped IPv6 equals IPv4', { skip: needStub }, async () => {
+  await stub('ok');
+  const p = freshV6Prefix();
+  const [, , a, b] = p.split(':');
+  const forms = [`${p}::1`, `2001:0db8:${a.padStart(4, '0')}:${b.padStart(4, '0')}:0:0:0:1`,
+    `2001:DB8:${a.toUpperCase()}:${b.toUpperCase()}::1`, `${p}:0::1`, `${p}:0:0:0:1`, `${p}::0:1`];
+  await assertSharedBudget(forms, `${p}::0001`, 'one IPv6 address, many spellings');
+  const v4 = freshIp();
+  await assertSharedBudget([v4, `::ffff:${v4}`, v4, `::FFFF:${v4}`, `0:0:0:0:0:ffff:${v4}`, v4], `::ffff:${v4}`, 'IPv4 and IPv4-mapped');
+});
+
 test('ice: without BEAM_TRUST_PROXY_IP a spoofed X-Forwarded-For is ignored; debug flag', { skip: needStub || (!NOTRUST && 'set BEAM_TURN_NOTRUST_BASE') }, async () => {
   await stub('ok');
   const { h, peers } = await roomWithGuests(7, undefined, NOTRUST);

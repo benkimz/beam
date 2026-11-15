@@ -116,3 +116,18 @@ test('refreshPlan: relayed guests ICE-restart, the host asks relayed guests to, 
   assert.deepEqual(plain(BeamIce.refreshPlan(false, [{ id: 'h', path: { local: 'host', remote: 'relay' } }])),
     [{ id: 'h', action: 'config' }]);
 });
+
+test('refresh mints only when this device\'s side of a live connection is relayed', () => {
+  assert.equal(BeamIce.needsRefresh([]), false, 'no connections');
+  assert.equal(BeamIce.needsRefresh([{ id: 'h', path: { local: 'host', remote: 'srflx' } }]), false, 'direct');
+  assert.equal(BeamIce.needsRefresh([{ id: 'h', path: { local: 'srflx', remote: 'relay' } }]), false, 'only the other side relays');
+  assert.equal(BeamIce.needsRefresh([{ id: 'gA', path: null }, { id: 'gB', path: { local: 'relay', remote: 'host' } }]), true);
+});
+
+test('restartStep: restart from stable, roll back a stuck offer, otherwise wait', () => {
+  assert.equal(BeamIce.restartStep('stable'), 'restart');
+  assert.equal(BeamIce.restartStep('have-local-offer'), 'rollback', 'lost or unanswered offer');
+  for (const s of ['have-remote-offer', 'have-local-pranswer', 'have-remote-pranswer', 'closed']) {
+    assert.equal(BeamIce.restartStep(s), 'wait', s);
+  }
+});

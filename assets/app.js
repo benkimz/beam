@@ -280,10 +280,19 @@
   // soon after they expire). Before that: fetch fresh ones, give them to every
   // connection, and ICE-restart the connections whose own side is relayed, so a new
   // allocation is made with the new credentials (offer/answer over `signal`).
+  // Credentials are minted only when this device's side of a live connection is
+  // relayed; otherwise the next new connection fetches them on demand.
   async function refreshIce() {
     const code = state.code;
     if (!code || ice.code !== code) return;
-    ice.until = 0;
+    const peers = [];
+    for (const [id, p] of state.peers) peers.push({ id, path: await pathOf(p.pc) });
+    if (state.code !== code) return;
+    ice.until = 0; // the cached credentials are about to expire either way
+    if (!BeamIce.needsRefresh(peers)) {
+      clearTimeout(ice.refreshTimer);
+      return;
+    }
     const r = await getIce();
     if (state.code !== code) return;
     if (!r.relay) {
@@ -292,12 +301,9 @@
       scheduleIceRefresh(ms);
       return;
     }
-    const peers = [];
-    for (const [id, p] of state.peers) {
+    for (const [, p] of state.peers) {
       try { p.pc.setConfiguration({ ...p.pc.getConfiguration(), iceServers: r.iceServers }); } catch {}
-      peers.push({ id, path: await pathOf(p.pc) });
     }
-    if (state.code !== code) return;
     for (const step of BeamIce.refreshPlan(isHost(), peers)) {
       if (step.action === "restart") restartIce(step.id);
       else if (step.action === "ask") sendSignal(step.id, { type: "restart" }).catch(() => {});
@@ -305,22 +311,34 @@
   }
 
   // ICE restart toward the host. Guests always make the offers, so this is the same
-  // offer/answer exchange as joining, on the existing connection. Retries with backoff.
+  // offer/answer exchange as joining, on the existing connection. A lost or unanswered
+  // offer is rolled back and retried, with backoff.
+  const RESTART_ANSWER_WAIT_MS = 10000;
   async function restartIce(remoteId, attempt = 0) {
     const p = state.peers.get(remoteId);
     if (!p || isHost() || !state.code) return;
     const code = state.code;
+    const retry = (why) => {
+      if (state.code !== code || state.peers.get(remoteId) !== p) return;
+      const ms = Math.min(2000 * Math.pow(2, attempt), 60000);
+      console.warn("beam: ICE restart retry in " + ms / 1000 + " s", why);
+      setTimeout(() => restartIce(remoteId, attempt + 1), ms);
+    };
     try {
-      if (p.pc.signalingState !== "stable") throw new Error("negotiation in progress");
+      const step = BeamIce.restartStep(p.pc.signalingState);
+      if (step === "wait") return retry("negotiation in progress");
+      if (step === "rollback") await p.pc.setLocalDescription({ type: "rollback" });
       if (p.pc.restartIce) p.pc.restartIce();
       const offer = await p.pc.createOffer({ iceRestart: true });
       await p.pc.setLocalDescription(offer);
       await sendSignal(remoteId, { type: "offer", sdp: offer.sdp });
+      // no answer in time: the next attempt rolls this offer back and tries again
+      setTimeout(() => {
+        if (p.pc.signalingState === "have-local-offer" && p.pc.localDescription
+            && p.pc.localDescription.sdp === offer.sdp) retry("no answer");
+      }, RESTART_ANSWER_WAIT_MS);
     } catch (e) {
-      if (state.code !== code || !state.peers.has(remoteId)) return;
-      const ms = Math.min(2000 * Math.pow(2, attempt), 60000);
-      console.warn("beam: ICE restart failed; retrying in " + ms / 1000 + " s", e);
-      setTimeout(() => restartIce(remoteId, attempt + 1), ms);
+      retry(e);
     }
   }
 

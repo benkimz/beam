@@ -100,7 +100,7 @@
     live session, and are revoked when the host ends the session. Issuance is
     rate-limited per participant, per session, per client IP and site-wide; the per-IP
     limit stores only a keyed hash of the address (HMAC-SHA256 under a random key that
-    is replaced every day), never the address itself.</li>
+    is replaced every day; IPv6 is counted per /64), never the address itself.</li>
     <li>Transfers use a single ordered <code>RTCDataChannel</code>. WebRTC data channels
     are always encrypted in transit (DTLS 1.2+, keys negotiated directly between the
     two browsers). Files are sent in 16&nbsp;KB chunks with backpressure
