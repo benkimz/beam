@@ -72,9 +72,9 @@ jobs:
 
       - name: Start container
         run: |
-          # Run as production does: read-only root, tmpfs /tmp and /run, uid 33, no caps.
+          # Run as production does: read-only root, tmpfs /tmp and /run, uid 33, no caps, 256 MB.
           docker run -d --name beam -p 127.0.0.1:8081:8080 \
-            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL beam:ci
+            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL --memory 256m beam:ci
           echo "waiting for container..."
           for i in $(seq 1 30); do
             if curl -sf -o /dev/null -X POST http://127.0.0.1:8081/api/beam.php \
