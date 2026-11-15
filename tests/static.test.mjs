@@ -10,7 +10,7 @@ test('OpenAPI specs are valid JSON', () => {
 });
 
 test('client and MCP JavaScript parses without syntax errors', () => {
-  for (const f of ['assets/app.js', 'assets/qr.js', 'agent/beam-agent.mjs', 'agent/mcp/server.mjs']) {
+  for (const f of ['assets/app.js', 'assets/ice.js', 'assets/qr.js', 'agent/beam-agent.mjs', 'agent/mcp/server.mjs']) {
     // `node --check` throws on a syntax error; passing means the file parses.
     execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' });
   }

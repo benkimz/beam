@@ -194,7 +194,8 @@
   async function handleSignal(from, msg) {
     try {
       if (msg.type === "offer" && isHost()) {
-        const p = createPeerFor(from, false);
+        const p = await createPeerFor(from, false);
+        if (!p) return;
         await p.pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
         await flushIce(from);
         const ans = await p.pc.createAnswer();
@@ -221,6 +222,8 @@
         receiveRelayFile(msg);
       } else if (msg.type === "bye") {
         byeFrom(from);
+      } else if (msg.type === "restart" && !isHost()) {
+        restartIce(from); // the host's relay credentials were refreshed
       }
     } catch (e) {
       console.warn("signal handling", e);
@@ -238,15 +241,139 @@
     }
   }
 
-  function createPeerFor(remoteId, initiator) {
+  // ICE servers come from beam.php `ice`: STUN, plus short-lived TURN relay
+  // credentials when the server has a relay configured. Cached per session; on any
+  // failure (or after ~2 s) we use STUN only. ?relay=1 forces the relay, but only
+  // when the server allows debugging (it says so in the `ice` answer).
+  const FORCE_RELAY = new URLSearchParams(location.search).get("relay") === "1";
+  const ice = { code: null, result: null, until: 0, pending: null, refreshTimer: null, attempt: 0 };
+
+  function getIce() {
+    const code = state.code;
+    if (ice.code === code && ice.result && Date.now() < ice.until) return Promise.resolve(ice.result);
+    if (ice.code === code && ice.pending) return ice.pending;
+    if (ice.code !== code) resetIce();
+    ice.code = code;
+    const req = { action: "ice", code, peer: state.peer, token: state.token };
+    const pending = BeamIce.load(() => api("beam.php", req), 2000).then((r) => {
+      if (ice.pending === pending) {
+        ice.result = r;
+        ice.until = Date.now() + r.cacheMs;
+        ice.pending = null;
+        if (r.relay) {
+          ice.attempt = 0;
+          scheduleIceRefresh(BeamIce.refreshDelay(r, 0));
+        }
+      }
+      return r;
+    });
+    ice.pending = pending;
+    return pending;
+  }
+
+  function scheduleIceRefresh(ms) {
+    clearTimeout(ice.refreshTimer);
+    ice.refreshTimer = setTimeout(refreshIce, ms);
+  }
+
+  // Long chat rooms outlive the credentials (Cloudflare drops a relayed connection
+  // soon after they expire). Before that: fetch fresh ones, give them to every
+  // connection, and ICE-restart the connections whose own side is relayed, so a new
+  // allocation is made with the new credentials (offer/answer over `signal`).
+  // Credentials are minted only when this device's side of a live connection is
+  // relayed; otherwise the next new connection fetches them on demand.
+  async function refreshIce() {
+    const code = state.code;
+    if (!code || ice.code !== code) return;
+    const peers = [];
+    for (const [id, p] of state.peers) peers.push({ id, path: await pathOf(p.pc) });
+    if (state.code !== code) return;
+    ice.until = 0; // the cached credentials are about to expire either way
+    if (!BeamIce.needsRefresh(peers)) {
+      clearTimeout(ice.refreshTimer);
+      return;
+    }
+    const r = await getIce();
+    if (state.code !== code) return;
+    if (!r.relay) {
+      const ms = BeamIce.refreshDelay(r, ice.attempt++);
+      console.warn("beam: relay credential refresh failed; retrying in " + Math.round(ms / 1000) + " s");
+      scheduleIceRefresh(ms);
+      return;
+    }
+    for (const [, p] of state.peers) {
+      try { p.pc.setConfiguration({ ...p.pc.getConfiguration(), iceServers: r.iceServers }); } catch {}
+    }
+    for (const step of BeamIce.refreshPlan(isHost(), peers)) {
+      if (step.action === "restart") restartIce(step.id);
+      else if (step.action === "ask") sendSignal(step.id, { type: "restart" }).catch(() => {});
+    }
+  }
+
+  // ICE restart toward the host. Guests always make the offers, so this is the same
+  // offer/answer exchange as joining, on the existing connection. A lost or unanswered
+  // offer is rolled back and retried, with backoff.
+  const RESTART_ANSWER_WAIT_MS = 10000;
+  async function restartIce(remoteId, attempt = 0) {
+    const p = state.peers.get(remoteId);
+    if (!p || isHost() || !state.code) return;
+    const code = state.code;
+    const retry = (why) => {
+      if (state.code !== code || state.peers.get(remoteId) !== p) return;
+      const ms = Math.min(2000 * Math.pow(2, attempt), 60000);
+      console.warn("beam: ICE restart retry in " + ms / 1000 + " s", why);
+      setTimeout(() => restartIce(remoteId, attempt + 1), ms);
+    };
+    try {
+      const step = BeamIce.restartStep(p.pc.signalingState);
+      if (step === "wait") return retry("negotiation in progress");
+      if (step === "rollback") await p.pc.setLocalDescription({ type: "rollback" });
+      if (p.pc.restartIce) p.pc.restartIce();
+      const offer = await p.pc.createOffer({ iceRestart: true });
+      await p.pc.setLocalDescription(offer);
+      await sendSignal(remoteId, { type: "offer", sdp: offer.sdp });
+      // no answer in time: the next attempt rolls this offer back and tries again
+      setTimeout(() => {
+        if (p.pc.signalingState === "have-local-offer" && p.pc.localDescription
+            && p.pc.localDescription.sdp === offer.sdp) retry("no answer");
+      }, RESTART_ANSWER_WAIT_MS);
+    } catch (e) {
+      retry(e);
+    }
+  }
+
+  async function pathOf(pc) {
+    try {
+      const report = await pc.getStats();
+      return BeamIce.selectedPath([...report.values()]);
+    } catch {
+      return null;
+    }
+  }
+
+  // Status lines say "directly" by default; correct them when the relay is in use.
+  async function noteRelay(el, text) {
+    const p = state.peers.get("h");
+    if (!p) return;
+    const code = state.code;
+    const path = await pathOf(p.pc);
+    if (state.code === code && BeamIce.isRelayed(path)) el.textContent = text;
+  }
+
+  function resetIce() {
+    clearTimeout(ice.refreshTimer);
+    Object.assign(ice, { code: null, result: null, until: 0, pending: null, refreshTimer: null, attempt: 0 });
+  }
+
+  async function createPeerFor(remoteId, initiator) {
     let p = state.peers.get(remoteId);
     if (p) return p;
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-      ],
-    });
+    const code = state.code;
+    const iceResult = await getIce();
+    if (state.code !== code) return null; // left this beam while waiting
+    p = state.peers.get(remoteId);
+    if (p) return p;
+    const pc = new RTCPeerConnection(BeamIce.rtcConfig(iceResult, FORCE_RELAY));
     p = { pc, dc: null, open: false, pendingIce: [], lossTimer: null };
     state.peers.set(remoteId, p);
     pc.onicecandidate = (ev) => {
@@ -392,6 +519,7 @@
           " · code " + state.code + " — more devices can join with it.";
       } else {
         st.textContent = "Connected directly — transfers are device-to-device.";
+        noteRelay(st, "Connected through an encrypted relay — transfers stay end-to-end encrypted.");
       }
       $("drop-hint").textContent = "any size · straight to the other device" + (n > 1 ? "s" : "");
     }
@@ -433,7 +561,8 @@
       state.mode = d.kind === "c" ? "chat" : "beam";
       state.lastMsgId = 0;
       history.replaceState(null, "", "/");
-      const p = createPeerFor("h", true);
+      const p = await createPeerFor("h", true);
+      if (!p) return;
       const offer = await p.pc.createOffer();
       await p.pc.setLocalDescription(offer);
       await sendSignal("h", { type: "offer", sdp: offer.sdp });
@@ -483,6 +612,7 @@
 
   function endBeam(msg) {
     stopPolling();
+    resetIce();
     clearTimeout(state.fallbackTimer);
     const wasHost = isHost();
     const code = state.code;
@@ -563,6 +693,7 @@
     } else {
       st.classList.add("live");
       st.textContent = "Connected — messages go device-to-device and are never stored.";
+      noteRelay(st, "Connected through an encrypted relay — messages stay end-to-end encrypted and are never stored.");
     }
     show("chat");
   }

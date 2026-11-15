@@ -63,6 +63,17 @@ on faith.
   tested. Client + MCP connector in [`agent/`](agent/).
 - **Transfers** — chunked over a `RTCDataChannel` with backpressure; a host beams
   to every connected peer (star topology, up to 8 guests).
+- **Encrypted relay (TURN)** — when no direct path exists (VPNs, tunnels, strict
+  NATs), the WebRTC connection runs through Cloudflare Realtime TURN. The relay only
+  forwards packets that are already DTLS-encrypted between the browsers, so it cannot
+  read them, and the beam server still never sees content. Short-lived credentials
+  come from `beam.php` `action: "ice"` (20 min for beams, 1 h for chat, revoked on
+  end), rate-limited per peer, session, client IP (IPv6 per /64; stored only as a daily-keyed HMAC)
+  and site-wide (constants in [api/_lib.php](api/_lib.php)). Set `BEAM_TURN_ENABLED=1`,
+  `BEAM_TURN_KEY_ID` and `BEAM_TURN_API_TOKEN` to enable it; anything else, including
+  empty values, means STUN only. Behind a proxy that overwrites `X-Forwarded-For`, set
+  `BEAM_TRUST_PROXY_IP=1` so the per-IP limit sees the real client. `BEAM_TURN_DEBUG=1`
+  lets `?relay=1` force the relay for testing.
 - **Relay fallback** ([api/relay.php](api/relay.php)) — when strict NATs block a
   direct connection, small files (≤ 7 MB) go through a store-and-forward relay
   that deletes them on pickup or session expiry.

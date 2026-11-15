@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+# TURN tests talk to a stub of Cloudflare's credential API (tests/turn-stub.mjs).
+# The token is a dummy: the tests check it never shows up in a response or log.
+env:
+  BEAM_TURN_KEY_ID: ci-turn-key
+  BEAM_TURN_API_TOKEN: ci-turn-token-must-never-leak
+  BEAM_TURN_STUB: http://127.0.0.1:8788
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -29,24 +36,51 @@ jobs:
         working-directory: agent/mcp
         run: npm ci
 
+      - name: Start the Cloudflare TURN API stub
+        run: node tests/turn-stub.mjs >/tmp/turn-stub.log 2>&1 &
+
       - name: Start beam (PHP built-in server)
         run: |
           # Multiple workers so mcp.php's loopback call to agent.php doesn't deadlock.
-          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 -t . >/tmp/php.log 2>&1 &
-          echo "waiting for server..."
-          for i in $(seq 1 30); do
-            if curl -sf -o /dev/null -X POST http://127.0.0.1:8080/api/beam.php \
-                 -H 'Content-Type: application/json' -d '{"action":"create"}'; then
-              echo "up"; exit 0
-            fi
-            sleep 0.5
+          # :8080 TURN on (pointed at the stub), client IP from X-Forwarded-For as behind our proxy;
+          # :8090 TURN on, X-Forwarded-For not trusted, debug allowed, its own key id;
+          # :8082 kill switch off; :8084 on but with an empty key id and blank token, as compose
+          # env_file passes unset values; :8087 on with a plain-http, non-local API base (refused).
+          BEAM_TURN_ENABLED=1 BEAM_TRUST_PROXY_IP=1 BEAM_TURN_API_BASE=http://127.0.0.1:8787/v1 \
+            PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 -t . >/tmp/php.log 2>&1 &
+          BEAM_TURN_ENABLED=1 BEAM_TURN_DEBUG=1 BEAM_TURN_KEY_ID=ci-turn-key-2 BEAM_TURN_API_BASE=http://127.0.0.1:8787/v1 \
+            PHP_CLI_SERVER_WORKERS=2 php -S 127.0.0.1:8090 -t . >/tmp/php-notrust.log 2>&1 &
+          BEAM_TURN_ENABLED=0 PHP_CLI_SERVER_WORKERS=2 php -S 127.0.0.1:8082 -t . >/tmp/php-off.log 2>&1 &
+          BEAM_TURN_ENABLED=1 BEAM_TURN_KEY_ID= BEAM_TURN_API_TOKEN='  ' BEAM_TURN_API_BASE=http://127.0.0.1:8787/v1 \
+            PHP_CLI_SERVER_WORKERS=2 php -S 127.0.0.1:8084 -t . >/tmp/php-empty.log 2>&1 &
+          BEAM_TURN_ENABLED=1 BEAM_TURN_API_BASE=http://127.0.0.2:8787/v1 \
+            PHP_CLI_SERVER_WORKERS=2 php -S 127.0.0.1:8087 -t . >/tmp/php-bad.log 2>&1 &
+          echo "waiting for servers..."
+          for port in 8080 8090 8082 8084 8087; do
+            for i in $(seq 1 30); do
+              if curl -sf -o /dev/null -X POST http://127.0.0.1:$port/api/beam.php \
+                   -H 'Content-Type: application/json' -d '{"action":"create"}'; then
+                echo "$port up"; continue 2
+              fi
+              sleep 0.5
+            done
+            echo "server $port failed to start"; cat /tmp/php*.log; exit 1
           done
-          echo "server failed to start"; cat /tmp/php.log; exit 1
 
       - name: Run test suite
         env:
           BEAM_BASE: http://127.0.0.1:8080
+          BEAM_TURN_NOTRUST_BASE: http://127.0.0.1:8090
+          BEAM_TURN_OFF_BASE: http://127.0.0.1:8082
+          BEAM_TURN_EMPTY_BASE: http://127.0.0.1:8084
+          BEAM_TURN_BADBASE_BASE: http://127.0.0.1:8087
         run: node --test tests/
+
+      - name: TURN API token never logged
+        if: always()
+        run: |
+          cat /tmp/php*.log
+          ! grep -F "$BEAM_TURN_API_TOKEN" /tmp/php*.log
 
   # The production image (Dockerfile): Apache + mod_php behind a TLS-terminating
   # proxy. Requests carry X-Forwarded-Proto: https, as the proxy would send.
@@ -55,6 +89,10 @@ jobs:
     env:
       BEAM_BASE: http://127.0.0.1:8081
       BEAM_FORWARDED_PROTO: https
+      BEAM_TURN_NOTRUST_BASE: http://127.0.0.1:8091
+      BEAM_TURN_OFF_BASE: http://127.0.0.1:8083
+      BEAM_TURN_EMPTY_BASE: http://127.0.0.1:8085
+      BEAM_TURN_BADBASE_BASE: http://127.0.0.1:8089
     steps:
       - uses: actions/checkout@v4
 
@@ -70,21 +108,53 @@ jobs:
       - name: Build image
         run: docker build -t beam:ci .
 
+      - name: Start the Cloudflare TURN API stub
+        run: node tests/turn-stub.mjs >/tmp/turn-stub.log 2>&1 &
+
       - name: Start container
         run: |
           # Run as production does: read-only root, tmpfs /tmp and /run, uid 33, no caps, 256 MB.
+          # TURN on, pointed at the stub on the runner (host-gateway reaches it from the container),
+          # client IP from X-Forwarded-For as behind our proxy.
           docker run -d --name beam -p 127.0.0.1:8081:8080 \
-            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL --memory 256m beam:ci
-          echo "waiting for container..."
-          for i in $(seq 1 30); do
-            if curl -sf -o /dev/null -X POST http://127.0.0.1:8081/api/beam.php \
-                 -H 'X-Forwarded-Proto: https' \
-                 -H 'Content-Type: application/json' -d '{"action":"create"}'; then
-              echo "up"; exit 0
-            fi
-            sleep 1
+            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL --memory 256m \
+            --add-host=host.docker.internal:host-gateway \
+            -e BEAM_TURN_ENABLED=1 -e BEAM_TURN_KEY_ID -e BEAM_TURN_API_TOKEN -e BEAM_TRUST_PROXY_IP=1 \
+            -e BEAM_TURN_API_BASE=http://host.docker.internal:8787/v1 beam:ci
+          # TURN on, X-Forwarded-For not trusted, debug allowed, its own key id.
+          docker run -d --name beam-notrust -p 127.0.0.1:8091:8080 \
+            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL --memory 256m \
+            --add-host=host.docker.internal:host-gateway \
+            -e BEAM_TURN_ENABLED=1 -e BEAM_TURN_KEY_ID=ci-turn-key-2 -e BEAM_TURN_API_TOKEN -e BEAM_TURN_DEBUG=1 \
+            -e BEAM_TURN_API_BASE=http://host.docker.internal:8787/v1 beam:ci
+          # TURN on with a plain-http, non-local API base: refused, STUN only.
+          docker run -d --name beam-bad -p 127.0.0.1:8089:8080 \
+            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL --memory 256m \
+            --add-host=stubhost:host-gateway \
+            -e BEAM_TURN_ENABLED=1 -e BEAM_TURN_KEY_ID -e BEAM_TURN_API_TOKEN \
+            -e BEAM_TURN_API_BASE=http://stubhost:8787/v1 beam:ci
+          # Same image with the kill switch off.
+          docker run -d --name beam-off -p 127.0.0.1:8083:8080 \
+            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL --memory 256m \
+            -e BEAM_TURN_ENABLED=0 -e BEAM_TURN_KEY_ID -e BEAM_TURN_API_TOKEN beam:ci
+          # Enabled, but key id and token empty (compose env_file with unset values).
+          docker run -d --name beam-empty -p 127.0.0.1:8085:8080 \
+            --read-only --tmpfs /tmp --tmpfs /run --user 33 --cap-drop ALL --memory 256m \
+            --add-host=host.docker.internal:host-gateway \
+            -e BEAM_TURN_ENABLED=1 -e BEAM_TURN_KEY_ID= -e 'BEAM_TURN_API_TOKEN=  ' \
+            -e BEAM_TURN_API_BASE=http://host.docker.internal:8787/v1 beam:ci
+          echo "waiting for containers..."
+          for port in 8081 8091 8083 8085 8089; do
+            for i in $(seq 1 30); do
+              if curl -sf -o /dev/null -X POST http://127.0.0.1:$port/api/beam.php \
+                   -H 'X-Forwarded-Proto: https' \
+                   -H 'Content-Type: application/json' -d '{"action":"create"}'; then
+                echo "$port up"; continue 2
+              fi
+              sleep 1
+            done
+            echo "container on $port failed to start"; docker logs beam; exit 1
           done
-          echo "container failed to start"; docker logs beam; exit 1
 
       - name: Proxy and image tests (PHP executed, no redirect loop, mcp loopback, hardening)
         env:
@@ -92,6 +162,8 @@ jobs:
         run: node --test tests/proxy.test.mjs tests/image.test.mjs tests/mcp.test.mjs
 
       - name: Run test suite against the container
+        env:
+          BEAM_CONTAINER: beam
         run: node --test tests/
 
       - name: Nothing written outside the data volume and tmpfs
@@ -102,4 +174,10 @@ jobs:
 
       - name: Container logs
         if: always()
-        run: docker logs beam
+        run: |
+          docker logs beam
+          for c in beam beam-notrust beam-off beam-empty beam-bad; do
+            if docker logs "$c" 2>&1 | grep -qF "$BEAM_TURN_API_TOKEN"; then
+              echo "TURN API token found in $c logs"; exit 1
+            fi
+          done
