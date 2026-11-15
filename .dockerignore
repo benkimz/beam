@@ -1,0 +1,11 @@
+# Not part of the served site.
+.git
+.github
+.gitignore
+.dockerignore
+Dockerfile
+tests
+tools
+agent/mcp/node_modules
+agent/_live-creds.json
+beamtm_data

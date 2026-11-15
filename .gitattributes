@@ -1,0 +1,4 @@
+# Run inside Linux containers: keep LF even with core.autocrlf on Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker/* text eol=lf
