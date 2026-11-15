@@ -49,6 +49,11 @@ test('ADVERSARIAL: only the host can end a room', async () => {
   assert.equal((await api('beam.php', { action: 'end', code: room.code, peer: 'h' })).status, 401, 'end without token');
   assert.equal((await api('beam.php', { action: 'end', code: room.code, peer: guest.peer, token: guest.token })).status, 403, 'guest cannot end');
   assert.equal((await api('beam.php', { action: 'end', code: room.code, peer: 'h', token: room.token })).status, 200, 'host ends');
+  // poll still answers, flagging the end, so guests learn "The host ended this beam"
+  const polled = await api('beam.php', { action: 'poll', code: room.code, peer: guest.peer, token: guest.token, after: 0 });
+  assert.equal(polled.status, 200);
+  assert.equal(polled.d.ended, true);
   // ended room refuses further activity
-  assert.equal((await api('beam.php', { action: 'poll', code: room.code, peer: 'h', token: room.token, after: 0 })).status, 404);
+  assert.equal((await api('beam.php', { action: 'join', code: room.code })).status, 404, 'join after end');
+  assert.equal((await api('beam.php', { action: 'signal', code: room.code, peer: guest.peer, token: guest.token, to: 'h', body: 'x' })).status, 404, 'signal after end');
 });
